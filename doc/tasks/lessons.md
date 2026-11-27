@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.7
+Version:   0.1.8
 Filename:  lessons.md
 Pathname:  doc/tasks/lessons.md
 Purpose:   Lessons learned and the rules that prevent repeating mistakes; review at the start of every session
@@ -50,3 +50,5 @@ Purpose:   Lessons learned and the rules that prevent repeating mistakes; review
   *Rule:* re-run the proof after the last edit, not before it.
 - **2026-11-27 — Docker: `uv run` inside the image tried to re-sync a read-only venv.**
   *Rule:* set `UV_NO_SYNC=1` and use `PYTHONPATH` in the app image.
+- **2026-11-27: The first pitch deck claimed more than the repo had.** It showed Boris in the live path, said injected text gave "zero extra orders" (S-04 made 2) and gave an old test count.
+  *Rule:* before a pitch or README goes out, check every claim against `evals/results/` and the handover, and say what is simulated in normal text size.

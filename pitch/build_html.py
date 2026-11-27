@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
 Author:    mikomeller
-Version:   0.1.0
+Version:   0.1.2
 Filename:  build_html.py
 Pathname:  pitch/build_html.py
-Purpose:   Turn pitch/pitch.md (Marp Markdown) into pitch/pitch.html: one self-contained file, no internet needed,
+Purpose:   Turn pitch/pitch.md (Marp Markdown) into pitch/pitch_plain.html, the plain offline fallback deck (the designed
+           deck is pitch/pitch.html, edited by hand). One self-contained file, no internet needed,
            arrow keys / space / click to move, N toggles speaker notes, F for full screen.
 Usage:     pip install markdown && python3 pitch/build_html.py
 """
@@ -17,7 +18,7 @@ from pathlib import Path
 import markdown
 
 HERE = Path(__file__).resolve().parent
-SRC, OUT = HERE / "pitch.md", HERE / "pitch.html"
+SRC, OUT = HERE / "pitch.md", HERE / "pitch_plain.html"
 
 CSS = """
 *{box-sizing:border-box}html,body{margin:0;height:100%;background:#0f172a;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
@@ -48,7 +49,7 @@ def main() -> None:
     text = SRC.read_text(encoding="utf-8")
     text = re.sub(r"\A---\n.*?\n---\n", "", text, flags=re.S)          # Marp front matter
     text = re.sub(r"\A\s*<!--\s*\nAuthor:.*?-->\n", "", text, flags=re.S)  # file header
-    title = "Family Shopper Agent — pitch"
+    title = "Family Shopper Agent pitch"
     slides = []
     for n, chunk in enumerate(re.split(r"\n---\n", text), start=1):
         notes = " ".join(m.strip() for m in re.findall(r"<!--(.*?)-->", chunk, flags=re.S))
@@ -58,8 +59,8 @@ def main() -> None:
         note_html = f'<div class="notes">{html.escape(notes)}</div>' if notes else ""
         slides.append(f'<section class="{cls}">{inner}{note_html}<div class="num">{n}</div></section>')
     OUT.write_text(
-        "<!DOCTYPE html>\n<!--\nAuthor:    mikomeller\nVersion:   0.1.0\nFilename:  pitch.html\n"
-        "Pathname:  pitch/pitch.html\nPurpose:   Generated from pitch/pitch.md by pitch/build_html.py; do not edit by hand.\n-->\n"
+        "<!DOCTYPE html>\n<!--\nAuthor:    mikomeller\nVersion:   0.1.0\nFilename:  pitch_plain.html\n"
+        "Pathname:  pitch/pitch_plain.html\nPurpose:   Generated from pitch/pitch.md by pitch/build_html.py; do not edit by hand.\n-->\n"
         f'<html lang="en"><head><meta charset="utf-8"><title>{title}</title><style>{CSS}</style></head>'
         f"<body>{''.join(slides)}<script>{JS}</script></body></html>\n",
         encoding="utf-8",
