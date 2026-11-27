@@ -1,0 +1,29 @@
+# Author:    mikomeller
+# Version:   0.1.0
+# Filename:  task.yml
+# Pathname:  .github/ISSUE_TEMPLATE/task.yml
+# Purpose:   Issue form for build tasks with goal and acceptance criteria
+name: "🛠 Task"
+description: A piece of build work with clear acceptance criteria
+labels: ["type:task"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How do we prove it works?
+      value: |
+        - [ ] 
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Boris, Wallet MCP, idealo, Agent, Demo, Docs]

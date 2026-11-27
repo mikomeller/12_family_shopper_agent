@@ -1,0 +1,27 @@
+%% Author:    mikomeller
+%% Version:   0.1.0
+%% Filename:  purchase_decision_sequence.mmd
+%% Pathname:  doc/diagrams/purchase_decision_sequence.mmd
+%% Purpose:   Sequence of one purchase: Boris identity + gating, idealo comparison, wallet cap checks
+sequenceDiagram
+    autonumber
+    actor Teen
+    participant GW as Boris Agent Gateway
+    participant AG as Family Buyer Agent
+    participant LLM as Boris LLM Gateway
+    participant ID as idealo MCP
+    participant WA as Family Wallet MCP
+    Teen->>GW: "Buy the cheapest 'Der Hobbit' paperback"
+    GW->>GW: verify caller = teen, visible tools = search + check_budget + place_order
+    GW->>AG: request + caller identity
+    AG->>LLM: plan (screened, cached)
+    AG->>ID: search_products(country=DE)
+    ID-->>AG: productRef list
+    AG->>ID: get_product_offers(productRef)
+    ID-->>AG: offers (price, shipping, shop)
+    AG->>WA: check_budget(member=teen, amount)
+    WA-->>AG: personal 12/50 € · family 210/400 € → OK
+    AG->>WA: place_order(member=teen, offer)
+    WA-->>AG: order id + shop deep link
+    AG-->>Teen: "Ordered for 9.99 € at Shop X" (no parent needed)
+    Note over WA: child → request_approval instead of place_order<br/>cap exceeded → refused with reason

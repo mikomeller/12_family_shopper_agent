@@ -1,0 +1,33 @@
+# Author:    mikomeller
+# Version:   0.1.0
+# Filename:  idea.yml
+# Pathname:  .github/ISSUE_TEMPLATE/idea.yml
+# Purpose:   Issue form for capturing ideas (lands in the "Ideas" stage of the Project board)
+name: "💡 Idea"
+description: Capture an idea for the family shopping agent
+title: "Idea: "
+labels: ["type:idea"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What should the agent do? One or two sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: trust
+    attributes:
+      label: Trust dividend
+      description: What could the agent do alone because of this, that a human would normally approve?
+  - type: dropdown
+    id: boris
+    attributes:
+      label: Boris feature it relies on
+      multiple: true
+      options: [Identity, Tool gating, Throttle, Screening, Response cache, Backup model, None]
+  - type: dropdown
+    id: criterion
+    attributes:
+      label: Judging criterion it strengthens
+      options: ["1 Job worth doing", "2 Trust you can see", "3 More freedom safely", "4 Only what matters"]

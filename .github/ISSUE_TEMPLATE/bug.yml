@@ -1,0 +1,23 @@
+# Author:    mikomeller
+# Version:   0.1.0
+# Filename:  bug.yml
+# Pathname:  .github/ISSUE_TEMPLATE/bug.yml
+# Purpose:   Issue form for bugs with reproduction steps
+name: "🐞 Bug"
+description: Something does not work as expected
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1. 
+    validations:
+      required: true

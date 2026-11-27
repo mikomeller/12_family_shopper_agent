@@ -1,0 +1,21 @@
+%% Author:    mikomeller
+%% Version:   0.1.0
+%% Filename:  family_buyer_architecture.mmd
+%% Pathname:  doc/diagrams/family_buyer_architecture.mmd
+%% Purpose:   Architecture of the family shopping agent: Boris trust layer, read-only idealo MCP,
+%%            Family Wallet MCP enforcing individual + family monthly caps
+flowchart LR
+    P[Parent] -->|sign-in| AG
+    T[Teen] -->|sign-in| AG
+    K[Child] -->|sign-in| AG
+    X[Unknown caller] -.->|refused| AG
+    subgraph Boris["TrustBoris"]
+      AG[Agent Gateway<br/>caller identity · MCP tool gating · agent throttle] --> A[Family Buyer Agent]
+      A --> LG[LLM Gateway<br/>prompt/reply screening · response cache · backup model · model throttle]
+    end
+    A -->|search_products · get_product_offers ·<br/>get_product_price_history| I[(idealo MCP<br/>read-only · trial 500 calls/day)]
+    A -->|check_budget · place_order · request_approval ·<br/>approve_request · set_budget · list_orders| W[(Family Wallet MCP<br/>Python + SQLite)]
+    W --> R{personal cap OK?<br/>family cap OK?<br/>approval needed?}
+    R -->|yes| O[Order recorded + shop deep link]
+    R -->|approval needed| Q[Approval request to parent]
+    R -->|cap exceeded| N[Refused with reason]

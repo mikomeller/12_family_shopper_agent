@@ -1,0 +1,29 @@
+# Author:    mikomeller
+# Version:   0.1.0
+# Filename:  family_budget.example.yaml
+# Pathname:  config/family_budget.example.yaml
+# Purpose:   Example family members, roles and monthly spending caps for the Family Wallet MCP.
+#            Copy to config/family_budget.yaml (git-ignored) and adjust.
+
+currency: EUR
+period: monthly            # caps reset on the 1st of each month
+family_cap: 400            # applies to ALL orders of all members together
+
+members:
+  - id: parent
+    role: parent
+    personal_cap: null     # no personal limit; the family cap still applies
+    needs_approval: false
+    can_approve: true      # approves child requests, sets budgets
+
+  - id: teen
+    role: teen
+    personal_cap: 50
+    needs_approval: false  # orders alone within the cap  -> the "trust dividend"
+    can_approve: false
+
+  - id: child
+    role: child
+    personal_cap: 20
+    needs_approval: true   # every order becomes an approval request to a parent
+    can_approve: false
