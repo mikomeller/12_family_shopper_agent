@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller, rhaveen-sa
-Version:   0.1.5
+Version:   0.1.6
 Filename:  demo_script.md
 Pathname:  doc/demo/demo_script.md
 Purpose:   Presenter script for the 3 minute pitch: timeline, five live steps in the browser, fallback,
@@ -45,6 +45,13 @@ Say every refusal out loud: what was refused, why and how much is left.
 assistant lists only offers that fit; the parent sees the headphones as INFLATED and not offered for purchase. These were checked through the
 offline assistant script and headless screenshots, not clicked by a person. Rehearse all five steps once and fix this table if the screen differs.
 HTTP smoke tests: `node scripts/ui_wallet_smoke.mjs` (32 steps) and `node scripts/offline_agent_budget_check.mjs` (6 of 6).
+
+## Guided story in the browser (`?story=1`, "Play the story"), three cases
+Open `http://localhost:6274/?story=1` and press "Play the story". Real API calls, a decision trail; the TrustBoris steps are simulated and labelled so.
+- **Case 1, Child, within the budget.** *Der Hobbit*: Shop A at 10,99 € is highlighted, ordered, no parent needed, 9,01 € left.
+- **Case 2, Child, above the budget.** Board game 30,98 €: refused with the reason and the amount left. Child asks a parent, Parent approves. Family budget 358,03 € left, the child's own budget 0,00 €.
+- **Case 3, Teen, above the budget** (added 2026-11-27 evening; replayed in headless Chrome on 2026-11-27 evening: 14 steps passed; wallet afterwards: three orders, child 0,00 €, teen 0,00 €, family 278,04 € left). Signed in as Teen, the story asks for the coffee machine at 79,99 € (genuine discount, was 99,99 €), above the teen's 50 €. The audience sees the refusal "This exceeds teen's monthly limit; 50.00 € left this month. A parent can step in.", then Teen asks a parent, then Parent steps in and approves. The order counts against the teen's budget (0,00 € left) and the family budget (278,04 € left when played after cases 1 and 2).
+- Fallback: `PYTHONPATH=src uv run python scripts/demo.py`. Its scene 2 already shows the teen asking a parent for the coffee machine.
 
 ## If the browser fails
 Run `PYTHONPATH=src uv run python scripts/demo.py`. It is offline and uses the real wallet and the idealo mock, with no LLM and no Boris. It ends with `DEMO OK: 5/5 scenes`.

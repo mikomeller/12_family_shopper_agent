@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.5
+Version:   0.1.6
 Filename:  pending.md
 Pathname:  doc/tasks/pending.md
 Purpose:   Pending tasks and next steps for 12_family_shopper_agent, in order, with owner and proof;
@@ -12,13 +12,13 @@ Owner: **You** = a person at the keyboard · **Orch** = `claude --agent orchestr
 The board is the source of truth for stories; this file is the order to work in.
 
 ## Next, in order (updated 2026-11-27, after rounds four to seven)
-1. (You) Answer the numbered questions below (revoke the OpenAI key, close PR #33, protect `main`, Boris connection details).
-2. (Orch) PR #70 (teen ask-a-parent path): review pending; merge after the reviewer's verdict and green CI.
-3. (You) A human click-through of the UI and of `?story=1`, two dry runs of the pitch.
+1. (You) Answer the numbered questions below (revoke the OpenAI key, protect `main`, Boris connection details).
+2. (Done) PR #70 merged (907a8fc, independent review: approve); PR #33 closed (unmerged commit `fd0fda3`, 7 lines of CSS for the old layout). Story Case 3 (teen, coffee machine 79,99 €) added; replayed in headless Chrome on 2026-11-27 evening: 14 steps passed; wallet afterwards: three orders, child 0,00 €, teen 0,00 €, family 278,04 € left.
+3. (You) A human click-through of the UI and of the three-case story (`?story=1`), two dry runs of the pitch.
 4. (You) Boris login, agent in Agent Builder, identity spike #4 (`BorisResolver` is merged but never run against Boris).
 5. (Orch) Live idealo sign-in and verification so live-catalogue purchases can be enabled (refused until the server can verify prices).
 6. (Orch) L3 with a real LLM (the driver is a stub).
-7. (Orch) Open remarks: open requests unlimited per child or teen, `GET /api/llm` readable by every member, `/api/idealo/reconnect` without sign-in, `src/cli.js` bypasses the wallet, auto-merge skipped when push and label arrive together.
+7. (Orch) Open remarks: (no request limit per member: owner decision, not wanted) `GET /api/llm` readable by every member, `/api/idealo/reconnect` without sign-in, `src/cli.js` bypasses the wallet, auto-merge skipped when push and label arrive together.
 
 Earlier list (2026-11-27 late evening, items 1 to 3 partly done):
 1. (You) Issue #55, numbered: 1. OpenAI or Nebius key: enter it in the "Model provider" dialog or `.env` (never commit it). 2. idealo: sign in with "Connect idealo" (live-catalogue purchases are refused for now). 3. Boris connection details.
@@ -41,9 +41,10 @@ Also open: source of `sale_days` (owner).
 
 ## Questions to the owner (2026-11-27 evening, numbered)
 1. Revoke the OpenAI key after the event?
-2. Close PR #33 (rodrigo-agent; its content is on `main` since #61)?
-3. Protect `main` or require review for collaborators' PRs?
-4. Boris connection details (URL, login, agent)?
+2. Protect `main` or require review for collaborators' PRs?
+3. Boris connection details (URL, login, agent)?
+
+Answered 2026-11-27 evening: PR #33 closed with a note; no limit on open approval requests; the deck cover chip "Live idealo MCP" stays.
 
 Older questions (2026-11-27 late evening, key now supplied, see handover):
 1. OpenAI or Nebius key: enter it in the "Model provider" dialog or `.env` (repo root, git-ignored)?

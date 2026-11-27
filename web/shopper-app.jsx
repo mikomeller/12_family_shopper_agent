@@ -374,9 +374,9 @@ function Decision({ steps, finished, running, onStop, onAgain }) {
     <div aria-live="polite">
       <ol className="trail">{steps.map((s) => <li key={s.id} className={`trail-step trail-${s.state}`}>
         <span className="trail-dot">{icon[s.state]}</span>
-        <div className="trail-body"><strong>{s.title}</strong>{s.text && <span>{s.text}</span>}{(s.subs || []).map((x, i) => <span key={i} className="trail-sub">{x}</span>)}{s.bold && <strong className="trail-bold">{s.bold}</strong>}</div>
+        <div className="trail-body">{s.heading && <strong className="trail-bold">{s.heading}</strong>}<strong>{s.title}</strong>{s.text && <span>{s.text}</span>}{(s.subs || []).map((x, i) => <span key={i} className="trail-sub">{x}</span>)}{s.bold && <strong className="trail-bold">{s.bold}</strong>}</div>
       </li>)}</ol>
-      {finished && <div className="trail-summary"><strong>{finished.ok ? "Story finished: 1 order decided by the trust layer, 1 order approved by a parent" : "Story stopped."}</strong>
+      {finished && <div className="trail-summary"><strong>{finished.ok ? "Story finished: 1 order decided by the trust layer, 2 orders approved by a parent" : "Story stopped."}</strong>
         <small>TrustBoris is not connected in this demo: the gateway steps are simulated; the limits are enforced for real by the Family Wallet.</small></div>}
     </div>
     {running ? <button type="button" className="secondary-button" onClick={onStop}>Stop</button> : finished && <button type="button" className="mock-buy-button" onClick={onAgain}>Play again</button>}
@@ -439,7 +439,7 @@ export default function ShopperApp() {
     storyRef.current = true;
     storyAbort.current = false;
     setStory({ running: true, steps: [], finished: null });
-    const T = { s1: "1 · Child asks", s2: "2 · idealo price comparison", s3: "3 · Child orders", s4: "4 · Trust layer decides", s5: "5 · Child asks", s6: "6 · idealo price comparison", s7: "7 · Child tries to order", s8: "8 · Child asks a parent", s9: "9 · Parent steps in" };
+    const T = { s1: "1 · Child asks", s2: "2 · idealo price comparison", s3: "3 · Child orders", s4: "4 · Trust layer decides", s5: "5 · Child asks", s6: "6 · idealo price comparison", s7: "7 · Child tries to order", s8: "8 · Child asks a parent", s9: "9 · Parent steps in", s10: "10 · Teen asks", s11: "11 · idealo price comparison", s12: "12 · Teen tries to order", s13: "13 · Teen asks a parent", s14: "14 · Parent steps in" };
     let current = null;
     let finished = { ok: false };
     const begin = (id, text) => { current = id; stepSet(id, { state: "running", text }, T[id]); };
@@ -470,7 +470,7 @@ export default function ShopperApp() {
       setMessages([]);
       await as("child"); await refreshState();
       // Case 1: within the budget, the trust layer decides
-      begin("s1", 'Child: "I\'d like Der Hobbit."'); await ask("Der Hobbit"); stepSet("s1", { state: "ok" }); await pause();
+      begin("s1", 'Child: "I\'d like Der Hobbit."'); stepSet("s1", { heading: "Case 1 — Child, within the budget" }); await ask("Der Hobbit"); stepSet("s1", { state: "ok" }); await pause();
       begin("s2", "Comparing offers on idealo…");
       const best = parseOffers(conv[conv.length - 1].content);
       stepSet("s2", { state: "ok", text: `Compared offers on idealo — best offer highlighted${best ? `: ${best.shopName ? best.shopName + ", " : ""}${money(best.priceEur)}` : ""}` }); await pause();
@@ -484,7 +484,7 @@ export default function ShopperApp() {
       await refreshState();
       stepSet("s4", { state: "ok", text: "Ordered — no parent needed", subs: [ID, `Family Wallet: within the child's budget — ${buy.result.message || "Order recorded."}`] }); await pause();
       // Case 2: above the budget, refused, a parent steps in
-      begin("s5", 'Child: "I want a board game."'); await ask("board game"); stepSet("s5", { state: "ok" }); await pause();
+      begin("s5", 'Child: "I want a board game."'); stepSet("s5", { heading: "Case 2 — Child, above the budget" }); await ask("board game"); stepSet("s5", { state: "ok" }); await pause();
       begin("s6", "Comparing offers on idealo…");
       stepSet("s6", { state: "ok", text: firstSentence(conv[conv.length - 1].content) }); await pause();
       begin("s7", "Trying to order…");
@@ -503,7 +503,31 @@ export default function ShopperApp() {
       const st = await stateNow();
       const childNow = st?.members?.find((m) => String(m.name).toLowerCase() === "child")?.remainingEur;
       stepSet("s8", { state: "ok", text: "Passed to a parent" });
-      stepSet("s9", { state: "ok", text: ap.result.message || "Approved.", subs: [`Family Wallet: checked against the family budget — ${money(st?.family?.remainingEur)} left`, `Child's own budget: ${money(childNow)} left`], bold: "Up to the budget the trust layer decides. Above it, a parent steps in." });
+      stepSet("s9", { state: "ok", text: ap.result.message || "Approved.", subs: [`Family Wallet: checked against the family budget — ${money(st?.family?.remainingEur)} left`, `Child's own budget: ${money(childNow)} left`] }); await pause();
+      // Case 3: teen, coffee machine above the budget, refused, a parent steps in
+      await as("teen"); await refreshState();
+      begin("s10", 'Teen: "I\'d like the coffee machine for Mum\'s birthday."'); stepSet("s10", { heading: "Case 3 — Teen, above the budget" }); await ask("coffee machine"); stepSet("s10", { state: "ok" }); await pause();
+      begin("s11", "Comparing offers on idealo…");
+      const teenReply = conv[conv.length - 1].content;
+      stepSet("s11", { state: "ok", text: firstSentence(teenReply) }); await pause();
+      begin("s12", "Trying to order…");
+      const bad2 = await post("/api/family/mock-purchases", { productRef: "coffee-genuine" });
+      if (bad2.status !== 409 || !bad2.result.canAskParent) throw new Error(bad2.result.error || `Unexpected status ${bad2.status}: the coffee machine was not refused as expected.`);
+      const genuine = /GENUINE/.test(teenReply) || /GENUINE/.test(JSON.stringify(bad2.result));
+      stepSet("s12", { state: "bad", text: "Refused by the trust layer", subs: [bad2.result.error || "Refused.", ...(genuine ? ["Discount check: GENUINE — the price is honest, the budget is the limit"] : [])] }); await refreshState(); await pause();
+      begin("s13", "Sending a request to a parent…");
+      const rq2 = await post("/api/family/request-approval", { productRef: "coffee-genuine" });
+      if (rq2.status !== 201 || !rq2.result.request?.requestId) throw new Error(rq2.result.error || `Unexpected status ${rq2.status}`);
+      const requestId2 = rq2.result.request.requestId;
+      stepSet("s13", { state: "wait", text: "Waiting for a parent", subs: [rq2.result.message || "Request sent."] }); await pause();
+      begin("s14", "Switching to Parent…");
+      await as("parent"); await stateNow();
+      const ap2 = await post("/api/family/approve", { requestId: requestId2 });
+      if (!ap2.ok) throw new Error(ap2.result.error || `Approval failed (${ap2.status})`);
+      const st2 = await stateNow();
+      const teenNow = st2?.members?.find((m) => String(m.name).toLowerCase() === "teen")?.remainingEur;
+      stepSet("s13", { state: "ok", text: "Passed to a parent" });
+      stepSet("s14", { state: "ok", text: ap2.result.message || "Approved.", subs: [`Family Wallet: checked against the family budget — ${money(st2?.family?.remainingEur)} left`, `Teen's own budget: ${money(teenNow)} left`], bold: "Up to the budget the trust layer decides. Above it, a parent steps in." });
       finished = { ok: true };
     } catch (err) {
       const stopped = err.message === "__stopped__";

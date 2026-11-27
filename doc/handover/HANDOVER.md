@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.6
+Version:   0.1.7
 Filename:  HANDOVER.md
 Pathname:  doc/handover/HANDOVER.md
 Purpose:   Handover for whoever continues 12_family_shopper_agent (person or Claude Code session):
@@ -59,10 +59,12 @@ through our own Family Wallet MCP, which enforces personal and family monthly ca
 All facts below are verified unless marked.
 - **Rule change (owner, 2026-11-27 evening).** Teen (50 EUR) and Child (20 EUR) order on their own up to their monthly budget. Above it the wallet refuses and a parent steps in: the member asks, the parent approves or rejects. A parent-approved order counts against the member's budget and the family budget (400 EUR). Child: PR #69 (route `POST /api/family/request-approval`, chat tool `request_parent_approval`). Teen: PR #70, review pending.
 - **Budget-aware offers.** "Within your budget: you can order this yourself." / "Above your budget — a parent can step in" with an Ask-a-parent button.
-- **Guided story (PR #63).** `http://localhost:6274/?story=1`, button "Play the story". Real API calls, decision trail; the story's two questions use the deterministic assistant (`scripted: true`). Case 1: Child asks for Der Hobbit, idealo comparison highlights Shop A (10,99 EUR), Child orders, 9,01 EUR left. Case 2: Child asks for a board game (30,98 EUR), refused above the budget, Child asks a parent, Parent approves, family budget pays (358,03 EUR left), child's own budget 0,00 EUR. The gateway steps in the story are SIMULATED and labelled so: TrustBoris is not connected.
+- **Guided story (PR #63).** `http://localhost:6274/?story=1`, button "Play the story". Real API calls, decision trail; the story's two questions use the deterministic assistant (`scripted: true`). Case 1: Child asks for Der Hobbit, idealo comparison highlights Shop A (10,99 EUR), Child orders, 9,01 EUR left. Case 2: Child asks for a board game (30,98 EUR), refused above the budget, Child asks a parent, Parent approves, family budget pays (358,03 EUR left), child's own budget 0,00 EUR. Case 3 (added 2026-11-27 evening, verified — replayed in headless Chrome on 2026-11-27 evening: 14 steps passed; wallet afterwards: three orders, child 0,00 €, teen 0,00 €, family 278,04 € left): Teen asks for the coffee machine (79,99 EUR, genuine discount, was 99,99 EUR), above the teen's 50 EUR, refused ("This exceeds teen's monthly limit; 50.00 EUR left this month. A parent can step in."), Teen asks a parent, Parent steps in and approves; the order counts against the teen's budget (0,00 EUR left) and the family budget (278,04 € after case 3). The gateway steps in the story are SIMULATED and labelled so: TrustBoris is not connected.
 - **Merged to `main` today by auto-merge after CI:** #44, #49, #50, #56, #59, #60, #61, #63, #65 (an EMPTY commit with a misleading title: a text replacement failed unnoticed; fixed properly in #68), #68, #69.
 - **Merged by collaborators on their own:** #62 and #64 (rhaveen-sa: pitch deck, README, Rings UI design, light/dark switch), #66 and #67 (c666agent666: `BorisResolver`, takes the caller from the TrustBoris-forwarded identity; OFF by default, enabled with `WALLET_IDENTITY_RESOLVER=boris`; when on it trusts the request `_meta` without a signature check, so it is only safe when the wallet is reachable solely through the Boris gateway).
-- **Open PRs:** #70 (teen ask-a-parent path; review pending). #33 (rodrigo-agent; its content is on `main` since #61; left open for the owner).
+- **PR #70 MERGED** (teen ask-a-parent path, pitch deck, records) after an independent review (approve), merge commit `907a8fc`. The demo container was rebuilt from that build and the story replayed (wallet afterwards: two child orders, child 0 EUR, family 358,03 EUR).
+- **PR #33 (rodrigo-agent) CLOSED** by the owner with a note: its content is on `main` except one commit `fd0fda3` "Expand chat panel dimensions" (7 lines of CSS for the pre-redesign layout), which was not merged.
+- **Owner decisions (2026-11-27 evening):** the deck cover chip "Live idealo MCP" stays as it is; no limit on open approval requests per member (not wanted).
 - **Rodrigo's four commits merged (#61):** idealo reconnect, 12 tool rounds, confirm dialog before ordering, English replies. UX rework: confirm dialog per role, result notice, state refresh, waiting badge, first-run steps.
 - **Real model.** The owner supplied an OpenAI key. It lives ONLY in the git-ignored `.env` on the demo machine. Chat with the real model works against the mock catalogue. The key was pasted in a chat: revoke it after the event. Real-model findings fixed in the web prompt: offer rows need `#ref=`; the model looped when nothing fit.
 - **Eval harness:** invariant strengthened (no order above a member's budget without a parent's approval) plus self-check tests.
@@ -71,7 +73,7 @@ All facts below are verified unless marked.
 
 ### How to run the story
 1. `docker compose up -d --build app` (or keep the running container), open `http://localhost:6274/?story=1`.
-2. Press "Play the story". Expect the two cases above, a decision trail, and the final family budget 358,03 EUR.
+2. Press "Play the story". Expect the three cases above, a decision trail, and the final family budget (358,03 EUR after case 2; 278,04 € after case 3).
 3. Fallback without a browser: `PYTHONPATH=src uv run python scripts/demo.py` ends with `DEMO OK: 5/5 scenes`.
 4. Say on stage: TrustBoris is not connected, the gateway steps are simulated, the Family Wallet enforces the limits.
 
@@ -161,7 +163,7 @@ makes it the main session. To make it the default, add `{"agent": "orchestrator"
 | Live purchases refused (501) | the live idealo catalogue cannot be bought through the UI | live idealo verification (#3), then enable |
 | Collaborators merge to `main` without review; `main` has no branch protection | an untested or rule-changing PR lands (#62, #64, #67 did) | `git fetch` and merge `origin/main` before every verification run; owner question 3 in `doc/tasks/pending.md` |
 | `BorisResolver` trusts `_meta` unsigned when enabled | anyone who reaches the wallet directly can claim a caller | keep it off unless the wallet is reachable only through the Boris gateway |
-| A child or teen can create unlimited open requests at any price (reviewer remark) | a parent's queue can be flooded | not fixed |
+| A child or teen can create unlimited open requests at any price (reviewer remark) | a parent's queue can be flooded | owner decision 2026-11-27: no limit wanted |
 | `GET /api/llm` readable by every member; `/api/idealo/reconnect` needs no sign-in | information and a side effect (writes `.data/idealo-oauth.json`) | acceptable on the 127.0.0.1 bind; not fixed |
 | `src/cli.js` (`npm start`) still bypasses the wallet | float budget, no rules | rewire or remove (owner's go) |
 | Auto-merge job is skipped when a push and the label arrive together | PR stays open | re-apply the label; fix: trigger on the label event without cancelling it |

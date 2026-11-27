@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller, rhaveen-sa
-Version:   0.1.11
+Version:   0.1.12
 Filename:  README.md
 Pathname:  README.md
 Purpose:   Overview, structure and first-time setup of 12_family_shopper_agent
@@ -44,7 +44,7 @@ Open `http://localhost:6274`. Then:
 3. Choose **Connect idealo** and sign in in idealo's window.
 4. Switch to **Teen** or **Child** and ask for a product.
 
-Guided story: open `http://localhost:6274/?story=1` and press **Play the story**. Case 1: the child asks for *Der Hobbit*, the idealo comparison highlights the best offer, the child orders within the budget. Case 2: a board game (30,98 €) is above the budget and refused, the child asks a parent, the parent approves and the family budget pays. TrustBoris is not connected in the demo: the gateway steps in the story are simulated and labelled so; the limits are enforced by the Family Wallet.
+Guided story: open `http://localhost:6274/?story=1` and press **Play the story**. Case 1: the child asks for *Der Hobbit*, the idealo comparison highlights the best offer, the child orders within the budget. Case 2: a board game (30,98 €) is above the budget and refused, the child asks a parent, the parent approves and the family budget pays. Case 3: the teen wants a 79,99 € coffee machine, above the 50 € budget, so it is refused and a parent steps in and approves (added 2026-11-27 evening; replayed in headless Chrome on 2026-11-27 evening: 14 steps passed; wallet afterwards: three orders, child 0,00 €, teen 0,00 €, family 278,04 € left). TrustBoris is not connected in the demo: the gateway steps in the story are simulated and labelled so; the limits are enforced by the Family Wallet.
 
 Without Docker:
 ```bash
