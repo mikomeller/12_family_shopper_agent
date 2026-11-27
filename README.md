@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller, rhaveen-sa
-Version:   0.1.8
+Version:   0.1.9
 Filename:  README.md
 Pathname:  README.md
 Purpose:   Overview, structure and first-time setup of 12_family_shopper_agent
@@ -125,7 +125,7 @@ uv run python scripts/demo.py
 ## For the team: Docker details
 ```bash
 docker compose up -d --build app      # builds and starts the web UI + wallet
-# open http://localhost:6274           (the only published port)
+# open http://localhost:6274           (the only published port, bound to 127.0.0.1 only; the demo sign-in is not authentication)
 ```
 - The wallet database lives in the named volume `app-data` and is seeded on first start.
 - Reset to a fresh state:
@@ -144,7 +144,16 @@ docker compose up -d --build app      # builds and starts the web UI + wallet
   Private and link-local base URLs are refused.
 - The catalogue is the live idealo MCP when the idealo sign-in is connected and a model key is set. Otherwise the sample catalogue is used.
 - `src/cli.js` (`npm start`) is an older CLI that still uses a local JSON budget and does not go through the wallet.
-- Smoke test with the server running: `node scripts/ui_wallet_smoke.mjs` (17 of 17, also through the Docker endpoint).
+- Budget-aware offers: the wallet decides per offer (`check_budget(price_cents)` gives `fits`) for the signed-in member. The assistant lists
+  only offers that fit and otherwise says what is left. The live idealo catalogue and mock search results (no price) are not filtered.
+- `/api/state` and the chat context are read as the signed-in member: teen and child see only their own orders, requests and budget, plus the family totals.
+- Demo links: `?as=parent|teen|child` signs in as that member and `?q=<text>` fills the chat, e.g. `http://localhost:6274/?as=child&q=headphones`.
+- The sample catalogue has 13 products with invented shops, prices and 30 day histories (`_meta.source` says so).
+- Smoke tests with the server running: `node scripts/ui_wallet_smoke.mjs` (32 of 32 through the Docker endpoint) and
+  `node scripts/offline_agent_budget_check.mjs` (6 of 6). Provider path against a local fake server: `node scripts/fake_llm.mjs`, then
+  `FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs` (43 of 43).
+- No automated test covers a real OpenAI or Nebius key, the live idealo sign-in or the `ALLOW_UNVERIFIED_LIVE_PURCHASES` path.
+  The owner reports the live idealo MCP and an own model key working in the app (2026-11-27).
 
 ## For the team: first-time GitHub setup (from your clone)
 ```bash

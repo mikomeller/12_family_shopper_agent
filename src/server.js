@@ -8,7 +8,7 @@ import { callWallet, walletMemberIds } from "./wallet-client.js";
 import { offlineReply } from "./offline-agent.js";
 import * as llm from "./llm-provider.js";
 import { connectMockTools, mockCatalogueCall } from "./mock-catalogue.js";
-import { beginIdealoConnection, connectIdealoTools, finishIdealoAuthorization, getIdealoAuthStatus } from "./idealo-oauth.js";
+import { beginIdealoConnection, connectIdealoTools, finishIdealoAuthorization, getIdealoAuthStatus, resetIdealoConnection } from "./idealo-oauth.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const skillPath = path.join(root, "skills", "family-shopper", "SKILL.md");
@@ -21,7 +21,7 @@ app.use(express.json({ limit: "64kb" }));
 // Demo sign-in: accounts are simulated; in production the caller identity comes from TrustBoris.
 // The browser sends the signed-in member in header X-Family-Member; the server treats it as the caller for every
 // chat, purchase, approve and reject. A memberName in a body or in chat text never overrides it.
-const OPEN_PATHS = new Set(["/api/idealo/status", "/api/idealo/connect"]);
+const OPEN_PATHS = new Set(["/api/idealo/status", "/api/idealo/connect", "/api/idealo/reconnect"]);
 app.use("/api", (request, response, next) => {
   if (OPEN_PATHS.has(request.originalUrl.split("?")[0])) return next();
   const id = slug(request.get("X-Family-Member") || "");
@@ -178,7 +178,7 @@ async function getInstructions(messages, callerId) {
     ? `\n\nResolved shopping member: ${selectedMember.name}. Remaining wallet budget: ${euro(selectedMember.remainingEur)}. The user has already named this member; do not ask who the request is for. Read the latest message as the shopping request and proceed with idealo search when it names a product or category. Ask a follow-up only if a genuinely necessary product detail is missing.`
     : "";
   return {
-    instructions: `${skill}\n\nCurrent Family Wallet budgets (source of truth; the wallet enforces all caps and may refuse or require parent approval):\n${JSON.stringify(profiles, null, 2)}${memberContext}\n\nFor live shopping use only the idealo MCP tools listed in the tool allowlist. For any mock purchase, call record_mock_purchase; never represent a tool call as a real order.`,
+    instructions: `${skill}\n\nCurrent Family Wallet budgets (source of truth; the wallet enforces all caps and may refuse or require parent approval):\n${JSON.stringify(profiles, null, 2)}${memberContext}\n\nAlways respond to the user in English. Keep product, brand, and shop names in their original form. For live shopping use only the idealo MCP tools listed in the tool allowlist. For any mock purchase, call record_mock_purchase; never represent a tool call as a real order.`,
     memberName: selectedMember?.name || null,
   };
 }
@@ -249,13 +249,14 @@ async function answer(messages, callerId) {
     };
     const catalogueNote = mock ? "mock idealo catalogue" : "live idealo";
     if (llm.activeApi() === "chat-completions") {
-      const reply = await llm.chatCompletionsLoop({ system: instructions, messages, tools, callTool });
+      const reply = await llm.chatCompletionsLoop({ system: instructions, messages, tools, callTool, maxTurns: 12 });
       return { reply, memberName, catalogue: catalogueNote };
     }
     const { apiKey, baseUrl, model } = llm.activeConfig();
     const client = new OpenAI({ apiKey, baseURL: baseUrl });
     let response = await client.responses.create({ model, instructions, input: messages, tools });
-    for (let turn = 0; turn < 6; turn += 1) {
+    const maxToolRounds = 12;
+    for (let turn = 0; turn < maxToolRounds; turn += 1) {
       const calls = response.output.filter((item) => item.type === "function_call");
       if (!calls.length) return { reply: response.output_text || "I couldn't prepare a response. Please try again.", memberName, catalogue: catalogueNote };
       const outputs = [];
@@ -267,7 +268,7 @@ async function answer(messages, callerId) {
       }
       response = await client.responses.create({ model, instructions, input: [...response.output, ...outputs], tools });
     }
-    return { reply: response.output_text || "I hit the tool-call limit. Please try again.", memberName, catalogue: catalogueNote };
+    return { reply: response.output_text || `I couldn't finish comparing offers within ${maxToolRounds} tool rounds. Try narrowing the search or asking for fewer options.`, memberName, catalogue: catalogueNote };
   } finally {
     await (connection.close ? connection.close() : connection.client.close()).catch(() => {});
   }
@@ -329,6 +330,13 @@ app.get("/api/idealo/status", async (_request, response) => {
 app.post("/api/idealo/connect", async (_request, response) => {
   try { response.json(await beginIdealoConnection()); }
   catch (error) { response.status(502).json({ error: error.message || "Could not connect to idealo." }); }
+});
+
+app.post("/api/idealo/reconnect", async (_request, response) => {
+  try {
+    await resetIdealoConnection();
+    response.json(await beginIdealoConnection());
+  } catch (error) { response.status(502).json({ error: error.message || "Could not reconnect to idealo." }); }
 });
 
 app.get("/oauth/callback", async (request, response) => {

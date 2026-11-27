@@ -109,6 +109,21 @@ Diagram: [`doc/diagrams/orchestration.mmd`](../diagrams/orchestration.mmd)
 - [ ] Browser click-through of the UI (nobody has done it); chat with a real OpenAI key; live idealo OAuth
 - [ ] `src/cli.js` rewired to the wallet or removed
 
+## Task 6 — Round three (2026-11-27 late evening)
+- [x] Independent review of PR #56: changes required (B1 discount check failed open, B2 client named the price)
+- [x] B1 and B2 fixed in PR #59 and re-attacked by the reviewer: approve, nothing blocking; merged by auto-merge, CI green (a31a110)
+- [x] Owner's bug fixed: offers are budget-aware (wallet `check_budget(price_cents)` → `fits`; LLM path `enforceBudget`); `node scripts/offline_agent_budget_check.mjs` 6 of 6
+- [x] `/api/state` and chat context read as the signed-in member
+- [x] Bring your own model provider (#58): `src/llm-provider.js`, "Model provider" dialog; `FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs` 43 of 43 against `scripts/fake_llm.mjs`
+- [x] Web UI redesign, `?as=` / `?q=` demo links; headless screenshots at 1280px seen
+- [x] idealo mock: 13 products; `compose.yaml` publishes `127.0.0.1:6274` only; container rebuilt, offline smoke 32 of 32
+- [x] Docs: prompt, orchestrator, README, handover, pending, todo, lessons, eval plan (S-14), demo script updated
+- [ ] Owner: OpenAI or Nebius key, idealo sign-in, Boris connection details (#55); `boris login`; agent in Agent Builder; spike #4
+- [ ] Not tested: real OpenAI / Nebius key, live idealo OAuth, `ALLOW_UNVERIFIED_LIVE_PURCHASES` path, LLM-mode identity under a real model
+- [ ] Browser click-through of the UI (purchase status cards, approve/reject, light theme, 390px phone, provider dialog, keyboard focus)
+- [ ] LLM driver for L3; S-14 in the eval harness; live idealo verification so live purchases can be enabled
+- [ ] Open reviewer remarks; `src/cli.js` rewired or removed
+
 ## Open decisions
 - Does a parent-approved child order still count against the child's personal cap? Decided by the owner 2026-11-27: yes (A1).
 - Open: source of `sale_days` for the discount check. Decided 2026-11-27: a parent can reject a request; INFLATED blocks the order.
@@ -119,6 +134,7 @@ Diagram: [`doc/diagrams/orchestration.mmd`](../diagrams/orchestration.mmd)
 - 2026-11-27: collaborator-branch script delivered and verified with a stubbed gh; live run pending.
 - 2026-11-27: Kanban hierarchy, orchestrator + subagents, eval plan, handover and pending list delivered; verified offline and against a stubbed gh. Live GitHub run and first Claude Code session pending. No product code yet.
 - 2026-11-27: hackathon build: wallet, idealo mock, discount check, demo and CI with automerge on `main`; `uv run pytest -q` 100 passed, ruff clean, `DEMO OK: 5/5 scenes`. Web UI server wired to the wallet (smoke 7 of 7; chat untested). Boris agent, spike #4, L3/L4 evals open.
+- 2026-11-27 late evening (Task 6): PR #59 merged after review (approve); budget-aware offers (6 of 6), server-verified prices, model provider dialog (43 of 43 against a fake server only), UI redesign, mock catalogue 13 products, Docker on 127.0.0.1 (32 of 32). `uv run pytest -q` 152 passed, 13 skipped; ruff clean; `DEMO OK: 5/5 scenes`. Not run: real OpenAI/Nebius key, live idealo, Boris, browser click-through.
 - 2026-11-27 evening (Task 5): wallet 8 tools, UI family accounts + offline mode (smoke 17 of 17), full app in Docker, eval harness S-01…S-13 (tool layer, scripted + adversarial driver: task 3/3, safety 3/3; L4 simulated). `uv run pytest -q` 144 passed, 13 skipped; ruff clean; `DEMO OK: 5/5 scenes`. Review of PR #56 pending. Not run: LLM agent evals, Boris, chat with an OpenAI key, browser click-through.
 
 ## Task: Pitch, demo script and README rewrite (2026-11-27, rhaveen-sa)

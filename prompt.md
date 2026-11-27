@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.2
+Version:   0.1.3
 Filename:  prompt.md
 Pathname:  prompt.md
 Purpose:   Start prompt for Claude Code in 12_family_shopper_agent: fetch the repo, read the project .md files,
@@ -48,15 +48,23 @@ own Family Wallet MCP (Python + SQLite), which enforces personal and family mont
 flow. Orders are simulated (recorded + shop deep link). TrustBoris adds caller identity, per-role tool gating,
 screening, throttling, caching and a backup model. Euro caps live only in the wallet; the agent never does the arithmetic.
 Before ordering a product that is advertised as reduced, the agent calls `check_discount` (Epic E7, from ticket #25) and reports the verdict; an INFLATED verdict BLOCKS the order. A parent can approve or reject a child's request.
+Offers are budget-aware: the wallet decides per offer (`check_budget(price_cents)` → `fits`) for the signed-in member, and the offline assistant lists only offers that fit. The web UI server never trusts a client price or discount claim: with the mock catalogue a purchase needs a known `productRef`; price, shop, link, product name and was-price come from the catalogue; a differing client price is refused (409); only GENUINE and NOT_BEST_PRICE proceed; INFLATED and unverifiable discounts are blocked; purchases against the LIVE idealo catalogue are refused (501) until the server can verify the price (`ALLOW_UNVERIFIED_LIVE_PURCHASES=1` overrides; unverified path).
 
-## Today (2026-11-27, hackathon day, evening)
+## Today (2026-11-27, hackathon day, late evening)
 - Submissions close at 19:45 CET; live demos from 20:00. Building is the first priority.
-- On `main` (PR #44, #49, #50, #56; #56 merged by auto-merge, CI green, merge commit fe056fb): wallet with 8 tools (new `reject_request`, parent only, status `rejected`, a rejected request never becomes an order; old databases are migrated in `init_db` without data loss; story #51), idealo mock, discount check, offline demo, web UI with simulated family accounts (demo sign-in via header `X-Family-Member`, not authentication; offline chat mode without `OPENAI_API_KEY`; story #53), full application in Docker (story #54), eval harness with scenarios S-01…S-13 (stories #37, #38, #39), CI with automerge.
-- Proof: `uv run pytest -q` 144 passed, 13 skipped; `uv run ruff check .` clean; `uv run python scripts/demo.py` DEMO OK: 5/5 scenes; `node scripts/ui_wallet_smoke.mjs` 17 of 17 (also through the Docker endpoint); evals at the tool layer with a scripted and an adversarial driver: task 3/3, safety 3/3 (`evals/results/2026-11-27_l3_l4.md`; L4 is a simulation of Boris tool gating).
-- Not tested: chat with a real OpenAI key, live idealo OAuth, the UI clicked through in a browser, L3/L4 with an LLM agent or TrustBoris (13 tests skip without an LLM key; the LLM driver is a stub). `src/cli.js` (`npm start`) still uses its own float budget file and bypasses the wallet.
-- Review: independent review of PR #56 pending (the PR was merged before the review because of the deadline).
-- Next, in order: (1) owner supplies the OpenAI key, the idealo sign-in and the Boris connection details (#55; they are in no branch and must never be pushed to this public repo); (2) owner: `boris login` in the container and the agent in Agent Builder (`doc/runbooks/boris_agent_setup.md`); (3) spike #4 (does Boris forward the caller identity); (4) implement the LLM driver in `evals/drivers.py`, run L3 for real, then L4 against Boris; (5) fix the reviewer's findings for PR #56; (6) rewire `src/cli.js` to the wallet or remove it.
+- On `main` (PR #44, #49, #50, #56, #59; PR #59 merged by auto-merge with CI green, merge commit a31a110, AFTER the independent review: verdict approve, nothing blocking): wallet with 8 tools, idealo mock (13 products), discount check, offline demo, web UI with simulated family accounts, full application in Docker, eval harness S-01…S-13, CI with automerge.
+- Review of PR #56 said "changes required" (two blocking findings in the web UI purchase path); both fixed in PR #59 and re-attacked by the reviewer: (B1) the discount check failed open; (B2) the client named the price. Now the server looks price and discount up itself (see Product).
+- Owner's bug fixed: "idealo cannot offer earphones for 299 € if the limit is 20 €". Offers are budget-aware (wallet decides per offer; LLM tool path filters `get_product_offers` on the server via `enforceBudget`, fails closed). Limits: mock search results carry no price and are not filtered; the live idealo catalogue is not filtered; suggested alternatives are only affordable items, not the same kind of product.
+- `/api/state` and the chat context are read as the signed-in member: teen and child see only their own orders, requests and budget line (plus family totals).
+- Bring your own model provider (story #58): `src/llm-provider.js` + "Model provider" dialog (parent only): OpenAI / Codex API key (Responses API), Nebius Token Factory (base URL `https://api.tokenfactory.nebius.com/v1`, confirmed from Nebius' docs; the default model name is a guess, check it in the Nebius console) or any OpenAI-compatible endpoint. Key kept in server memory only, never returned (last 4 characters), never logged, dropped when base URL or provider changes; private and link-local base URLs refused; env alternative `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`. NOT built: signing in with a ChatGPT/Codex subscription (OAuth).
+- Web UI redesigned (role switcher, "signed in as" bar, offer cards, status cards, budgets panel, dark theme, demo URL parameters `?as=parent|teen|child` and `?q=<text>`).
+- `compose.yaml` publishes `127.0.0.1:6274` only; container rebuilt, offline smoke 32 of 32 through `http://localhost:6274`.
+- Proof: `uv run pytest -q` 152 passed, 13 skipped; `uv run ruff check .` clean; `uv run python scripts/demo.py` DEMO OK: 5/5 scenes; `node scripts/offline_agent_budget_check.mjs` 6 of 6; `FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs` 43 of 43 (against the local fake server `scripts/fake_llm.mjs`); evals at the tool layer unchanged (`evals/results/2026-11-27_l3_l4.md`; L4 is a simulation).
+- Not tested: a real OpenAI key, a real Nebius key, live idealo OAuth, the UI clicked through in a browser (purchase status cards, approve/reject with a pending request, light theme, 390px phone with data, provider dialog, keyboard focus were never seen rendered), L3/L4 with an LLM agent or TrustBoris, the `ALLOW_UNVERIFIED_LIVE_PURCHASES` path, LLM-mode identity under a real model. `src/cli.js` (`npm start`) still bypasses the wallet. The idealo mock data is INVENTED (`_meta.source`): real response shapes and prices are unverified until the live smoke test (#3).
+- The owner added a pitch deck in `pitch/` (commit 0f82ed1, merged with PR #59); `pitch/*.py` is exempt from the line-length lint rule. Do not edit `pitch/`.
+- Next, in order: (1) owner items of issue #55: 1. OpenAI or Nebius key (enter it in the "Model provider" dialog or `.env`); 2. idealo sign-in with "Connect idealo" (live-catalogue purchases are refused for now); 3. Boris connection details; (2) owner: `boris login` in the container, the agent in Agent Builder, spike #4; (3) implement the LLM driver in `evals/drivers.py`, run L3 for real, then L4 against Boris; (4) live idealo verification so live purchases can be enabled; (5) open reviewer remarks (below); (6) rewire `src/cli.js` to the wallet or remove it; (7) a real browser click-through of the UI.
   Drop ADR if time runs short; never drop the cap tests.
+- Reviewer remarks still open (non-blocking): `GET /api/llm` is readable by every member (base URL, model, last 4 key characters); teen and child see family-wide totals; `get_product_details` / `get_product_price_history` are not budget-filtered (they contain no offers); token TTL of 1 day is never refreshed by the Node server (after 24 h wallet calls fail until restart); migration re-reads schema outside the transaction; `uv:latest` unpinned in the app image; the seed script wipes the db without a guard.
 - Decided by the owner: a parent-approved child order counts against the child's personal cap and the family cap.
 - Decided by the owner: safety scenarios must pass 3 of 3 runs.
 - Decided by the owner: the orchestrator may push and open pull requests itself, label them `automerge`, squash only; development happens only in `~/Documents/M1_20230921/src/genAI/12_family_shopper_agent`.
@@ -122,7 +130,9 @@ A subagent starts with no memory of this session. Every brief contains:
 uv run ruff check .
 uv run pytest -q
 uv run python scripts/demo.py                # must end with: DEMO OK: 5/5 scenes
-node scripts/ui_wallet_smoke.mjs              # web UI + wallet; needs the server or `docker compose up -d app`; 17 of 17
+node scripts/ui_wallet_smoke.mjs              # web UI + wallet; needs the server or `docker compose up -d app`; 32 of 32 offline steps
+node scripts/offline_agent_budget_check.mjs   # offers are budget-aware per role; 6 of 6
+FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs   # provider path; needs `node scripts/fake_llm.mjs` running (local fake OpenAI-compatible server); 43 of 43
 uv run pytest -q evals -m "l3 or l4"       # eval scenarios at the tool layer
 python3 scripts/setup_github.py --dry-run    # only when scripts/backlog.json changed
 ```

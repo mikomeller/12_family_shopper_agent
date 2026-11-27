@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller, rhaveen-sa
-Version:   0.1.2
+Version:   0.1.3
 Filename:  demo_script.md
 Pathname:  doc/demo/demo_script.md
 Purpose:   Presenter script for the 3 minute pitch: timeline, five live steps in the browser, fallback,
@@ -28,7 +28,8 @@ Backup slides 7 to 9 are for questions only.
 5. Open `pitch/pitch.html`. Press F for full screen and N for speaker notes.
 
 ## Live steps in the browser
-Use the account switcher at the top. It is a demo sign-in, not real authentication.
+Use the account switcher at the top, or a demo link: `?as=parent|teen|child` signs in and `?q=<text>` fills the chat,
+for example `http://localhost:6274/?as=teen&q=Der%20Hobbit`. It is a demo sign-in, not real authentication.
 
 | Step | Sign in as | Do | Audience sees | Fallback scene in `demo.py` |
 |---|---|---|---|---|
@@ -40,7 +41,10 @@ Use the account switcher at the top. It is a demo sign-in, not real authenticati
 
 Say every refusal out loud: what was refused, why and how much is left.
 
-**Not verified in the browser yet.** Steps 2 and 5 are planned from the server code (budget-aware offers and the discount check in the purchase path). Rehearse all five steps once before the pitch and fix this table if the screen differs.
+**Not verified in the browser yet.** Steps 2 and 5 follow the server code: the wallet checks every offer against the caller's budget and the
+assistant lists only offers that fit; the parent sees the headphones as INFLATED and not offered for purchase. These were checked through the
+offline assistant script and headless screenshots, not clicked by a person. Rehearse all five steps once and fix this table if the screen differs.
+HTTP smoke tests: `node scripts/ui_wallet_smoke.mjs` (32 steps) and `node scripts/offline_agent_budget_check.mjs` (6 of 6).
 
 ## If the browser fails
 Run `PYTHONPATH=src uv run python scripts/demo.py`. It is offline and uses the real wallet and the idealo mock, with no LLM and no Boris. It ends with `DEMO OK: 5/5 scenes`.
