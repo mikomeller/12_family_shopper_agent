@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.8
+Version:   0.1.9
 Filename:  lessons.md
 Pathname:  doc/tasks/lessons.md
 Purpose:   Lessons learned and the rules that prevent repeating mistakes; review at the start of every session
@@ -50,6 +50,8 @@ Purpose:   Lessons learned and the rules that prevent repeating mistakes; review
   *Rule:* re-run the proof after the last edit, not before it.
 - **2026-11-27 — Docker: `uv run` inside the image tried to re-sync a read-only venv.**
   *Rule:* set `UV_NO_SYNC=1` and use `PYTHONPATH` in the app image.
+- **2026-11-27: The first pitch deck claimed more than the repo had.** It showed Boris in the live path, said injected text gave "zero extra orders" (S-04 made 2) and gave an old test count.
+  *Rule:* before a pitch or README goes out, check every claim against `evals/results/` and the handover, and say what is simulated in normal text size.
 - **2026-11-27 — The owner found a logic error I had not caught:** the agent offered products the caller could not buy (earphones for 299 € with a 20 € limit). My scenarios checked what can be ordered, not what is offered.
   *Rule:* every scenario set needs a "what is offered" check per role, not only "what can be ordered" (see S-14).
 - **2026-11-27 — A commit by the owner landed on the working branch** while I was working and went up with my push; it failed CI on a lint rule.

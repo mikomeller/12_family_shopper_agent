@@ -1,28 +1,99 @@
 <!--
-Author:    mikomeller
-Version:   0.1.7
+Author:    mikomeller, rhaveen-sa
+Version:   0.1.9
 Filename:  README.md
 Pathname:  README.md
 Purpose:   Overview, structure and first-time setup of 12_family_shopper_agent
 -->
-# 12_family_shopper_agent
+# Family Shopper Agent
 
-A family shopping agent built on Affinidi **TrustBoris** for the AI Agents Berlin hackathon (Affinidi challenge).
-It searches and compares products through the official **idealo MCP** and **orders on its own**,
-within each member's and the family's monthly spending caps.
+Pocket money with guardrails. A shopping agent for the whole family: it searches idealo, compares shops and orders.
+A teen's agent orders on its own. A child's order waits for a parent. Nobody spends more than the family allows.
 
-**Trust dividend:** spending money without a parent approving every order.
+Built for the AI Agents Berlin hackathon, Affinidi TrustBoris challenge (27 Nov 2026).
+Pitch deck: [`pitch/pitch.html`](pitch/pitch.html) · 2 minute script: [`pitch/pitch_script_2min.md`](pitch/pitch_script_2min.md) ·
+Website design: [`doc/design/website_design.md`](doc/design/website_design.md)
 
-| Role | May do | Monthly cap |
+## What it does
+| Who | What the agent does alone | Limit per month |
 |---|---|---|
-| Parent | everything, approves requests, sets budgets | none (family cap applies) |
-| Teen | search and order alone | €50 |
-| Child | search; every order becomes an approval request | €20 |
-| Family | all orders together | €400 |
+| Teen | searches, compares, orders | 50 € |
+| Child | searches; every order becomes a request to a parent | 20 € |
+| Parent | approves or rejects requests, sets limits, chooses the model | family limit applies |
+| Whole family | all orders together | 400 € |
 
-Architecture: [`doc/diagrams/family_buyer_architecture.mmd`](doc/diagrams/family_buyer_architecture.mmd) ·
-Purchase flow: [`doc/diagrams/purchase_decision_sequence.mmd`](doc/diagrams/purchase_decision_sequence.mmd) ·
-Research: [`doc/research/affinidi_boris_idealo.md`](doc/research/affinidi_boris_idealo.md)
+- **Live product search.** The app signs in to the official idealo MCP (`https://mcp.idealo.com/mcp`) with OAuth and searches real offers and price history.
+- **Your own model.** A parent enters the provider, model and API key in the app: OpenAI, Nebius Token Factory or any OpenAI-compatible endpoint.
+  The key stays in server memory. It is never written to disk and never sent back to the browser.
+- **Limits in the wallet, not in the prompt.** Every order goes through our Family Wallet MCP. It counts money in whole cents and checks
+  the limit and writes the order in one database step. It refuses a child's direct order and a forged caller, whatever the model asks.
+- **The server checks every price.** The model only names what to buy. The server looks up the price, shop and link itself.
+  On the sample catalogue it also checks a claimed "was" price against the price history and blocks an inflated discount.
+- **Every "no" explains itself:** what was refused, why and how much is left this month.
+
+## Get started
+With Docker:
+```bash
+docker compose up -d --build app
+```
+Open `http://localhost:6274`. Then:
+1. Sign in as **Parent** with the account switcher at the top.
+2. Open **Bring your own model**. Choose the provider, enter the model and your API key.
+3. Choose **Connect idealo** and sign in in idealo's window.
+4. Switch to **Teen** or **Child** and ask for a product.
+
+Without Docker:
+```bash
+npm install
+uv sync
+cp .env.example .env     # optional: preset the provider, model and key here instead of in the app
+npm run dev              # server on http://127.0.0.1:3001, UI through Vite
+```
+Without a model key the chat answers from a built-in sample catalogue, so you can try the flow offline.
+The app shows which mode is active.
+
+## How it works
+```
+Parent / Teen / Child  →  web app (React + Node)  →  your LLM (OpenAI, Nebius or any OpenAI-compatible endpoint)
+                                   │
+                   ┌───────────────┴───────────────┐
+             idealo MCP (live, read only)    Family Wallet MCP (Python, SQLite)
+             search, offers, price history   limits, orders, requests, approve, reject
+```
+- The Node server starts one wallet process per family member, each with a signed member token. The browser never decides a limit.
+- Orders are recorded in the wallet with the shop and a link to the offer. The app does not pay the shop.
+- With the live idealo catalogue the server cannot yet verify a price to the cent, so it refuses the order by default.
+  Set `ALLOW_UNVERIFIED_LIVE_PURCHASES=1` to record live orders anyway (marked `priceVerified: false`). Search and comparison are live either way.
+- Diagrams: [`doc/diagrams/family_buyer_architecture.mmd`](doc/diagrams/family_buyer_architecture.mmd),
+  [`doc/diagrams/purchase_decision_sequence.mmd`](doc/diagrams/purchase_decision_sequence.mmd).
+  Research: [`doc/research/affinidi_boris_idealo.md`](doc/research/affinidi_boris_idealo.md).
+
+## Where TrustBoris fits
+The wallet keeps the money safe on its own. TrustBoris controls the agent around it:
+| Boris feature | Why we use it |
+|---|---|
+| Caller identity | the wallet needs to know who is calling to apply the right limit |
+| Tools shown per role | a child's agent never sees "place order" or "approve" |
+| Prompt and reply screening | product texts from idealo are untrusted input |
+| Throttle and response cache | protects the idealo quota (500 calls a day) and the model budget |
+| Backup model | shopping keeps working when one model provider fails |
+
+Status: Boris is designed in and the Boris CLI runs in Docker. The agent is not yet connected in Boris Agent Builder.
+
+## Tested
+```bash
+uv run pytest -q                 # 152 passed, 13 skipped (the skipped tests need an LLM key)
+uv run python scripts/demo.py    # walks the main flows against the real wallet, ends with DEMO OK: 5/5 scenes
+```
+- Limit rules and the wallet tool contract: 72 of 72 pass.
+- 13 family scenarios, 3 runs each, with a scripted driver and a driver that breaks every rule: no limit was ever exceeded,
+  no child order went through without a parent. Results: `evals/results/`.
+
+## Known limits
+- The account switcher (Parent, Teen, Child) is a simple sign-in, not authentication. Real caller identity should come from TrustBoris.
+- Orders are recorded, not paid. Payment could come later from Affinidi Agent Pay.
+- Live idealo orders need `ALLOW_UNVERIFIED_LIVE_PURCHASES=1` until the server can verify live prices. The discount check runs on the sample catalogue only.
+- The scenario evals run at the tool layer, not yet with a language model.
 
 ## Structure
 ```
@@ -44,14 +115,14 @@ web/, index.html, vite.config.js, package.json                        React fron
 skills/family-shopper/    shopper skill used by the chat
 ```
 
-## Run the tests and the offline demo
+## For the team: tests and the offline walk-through
 ```bash
 uv sync
 uv run pytest -q
 uv run python scripts/demo.py
 ```
 
-## Run everything in Docker
+## For the team: Docker details
 ```bash
 docker compose up -d --build app      # builds and starts the web UI + wallet
 # open http://localhost:6274           (the only published port, bound to 127.0.0.1 only; the demo sign-in is not authentication)
@@ -59,61 +130,32 @@ docker compose up -d --build app      # builds and starts the web UI + wallet
 - The wallet database lives in the named volume `app-data` and is seeded on first start.
 - Reset to a fresh state:
   `docker compose down && docker volume rm 12_family_shopper_agent_app-data && docker compose up -d app`
-- An OpenAI key goes into `.env` in the repo root (git-ignored; never commit it). Without a key the chat runs in offline mode (see Web UI).
+- A model key can go into `.env` in the repo root (git-ignored; never commit it) or be entered in the app by a parent.
 - Boris CLI: `docker compose --profile boris run --rm boris boris doctor`. The image contains the Docker client; `boris doctor` shows Docker OK.
   The `boris` service mounts `/var/run/docker.sock`, which gives that container control of the host's Docker (weakens isolation); use it only on request. `boris login` is not done yet (owner).
 - Runbook: [`doc/runbooks/docker_app.md`](doc/runbooks/docker_app.md). The container serves the Vite dev server, not a production build.
 
-## Web UI (by Rodrigo)
-A chat front end for the family shopper. **Search uses the real idealo MCP and needs an OpenAI key.**
-**All budget decisions come from the Family Wallet MCP** (integer cents; teen 50 EUR, child 20 EUR with parent approval, family 400 EUR per month).
-The UI never decides a cap: the Node server starts one wallet process per member with a signed token and relays the wallet's answers.
-```bash
-npm install
-cp .env.example .env     # set OPENAI_API_KEY; optionally WALLET_TOKEN_SECRET and WALLET_DB
-npm run dev              # server on http://127.0.0.1:3001, UI via Vite
-```
-If `WALLET_TOKEN_SECRET` is empty the server generates a random one in memory at start. The wallet db is created on first start
-(`WALLET_DB`, default `data/wallet.sqlite`). Members and limits are changed only in the wallet by a parent; the UI cannot add members.
-`src/cli.js` (`npm start`) runs the older CLI, which still uses a local JSON budget and does not go through the wallet.
-Smoke test with the server running: `node scripts/ui_wallet_smoke.mjs` (32 offline steps, 32 of 32 through the Docker endpoint). Budget-aware offers: `node scripts/offline_agent_budget_check.mjs` (6 of 6).
+## For the team: web app details (web UI by Rodrigo)
+- If `WALLET_TOKEN_SECRET` is empty the server generates a random one in memory at start. The wallet db is created on first start
+  (`WALLET_DB`, default `data/wallet.sqlite`). Members and limits change only in the wallet, by a parent.
+- The signed-in member (HTTP header `X-Family-Member`) is the caller for chat, purchases, approve and reject. A `memberName` in the body
+  cannot override it (403). A missing header gives 401. Only a parent may change the model provider.
+- A stored API key is kept only while the provider and base URL stay the same, so it is never sent to a new host.
+  Private and link-local base URLs are refused.
+- The catalogue is the live idealo MCP when the idealo sign-in is connected and a model key is set. Otherwise the sample catalogue is used.
+- `src/cli.js` (`npm start`) is an older CLI that still uses a local JSON budget and does not go through the wallet.
+- Budget-aware offers: the wallet decides per offer (`check_budget(price_cents)` gives `fits`) for the signed-in member. The assistant lists
+  only offers that fit and otherwise says what is left. The live idealo catalogue and mock search results (no price) are not filtered.
+- `/api/state` and the chat context are read as the signed-in member: teen and child see only their own orders, requests and budget, plus the family totals.
+- Demo links: `?as=parent|teen|child` signs in as that member and `?q=<text>` fills the chat, e.g. `http://localhost:6274/?as=child&q=headphones`.
+- The sample catalogue has 13 products with invented shops, prices and 30 day histories (`_meta.source` says so).
+- Smoke tests with the server running: `node scripts/ui_wallet_smoke.mjs` (32 of 32 through the Docker endpoint) and
+  `node scripts/offline_agent_budget_check.mjs` (6 of 6). Provider path against a local fake server: `node scripts/fake_llm.mjs`, then
+  `FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs` (43 of 43).
+- No automated test covers a real OpenAI or Nebius key, the live idealo sign-in or the `ALLOW_UNVERIFIED_LIVE_PURCHASES` path.
+  The owner reports the live idealo MCP and an own model key working in the app (2026-11-27).
 
-**Family accounts (demo sign-in).** The UI has an account switcher Parent / Teen / Child. The signed-in member (HTTP header `X-Family-Member`)
-is the caller for chat, purchases, approve and reject; a `memberName` in the body cannot override it (403); a missing header gives 401.
-Approve and reject reach the wallet as the signed-in member, so the wallet refuses non-parents. This is a DEMO sign-in, **not authentication**;
-in production the caller identity must come from TrustBoris.
-
-**Discount check.** When a "was" price is claimed, the server runs `check_discount` before the wallet call; an INFLATED verdict blocks the order.
-The wallet has no price history and cannot verify a discount itself; an agent that skips the check is limited only by the caps.
-
-**Budget-aware offers.** The wallet decides per offer (`check_budget(price_cents)` → `fits`) for the signed-in member. The offline assistant lists only offers that fit
-and otherwise says "Nothing in this search fits your budget: the cheapest offer is …, you have … left this month" and suggests affordable catalogue items; the LLM tool path
-filters `get_product_offers` results on the server (fails closed). Limits: mock search results carry no price and are not filtered; the live idealo catalogue is not filtered;
-suggested alternatives are affordable items, not necessarily the same kind of product.
-
-**Prices and discounts are checked by the server.** With the mock catalogue a purchase needs a known `productRef`; the server takes price, shop, link, product name and was-price
-from the catalogue, and a client price that differs is refused (409). Only the verdicts GENUINE and NOT_BEST_PRICE proceed; INFLATED and unverifiable discounts are blocked.
-Purchases against the LIVE idealo catalogue are refused (501) until the server can verify the price; `ALLOW_UNVERIFIED_LIVE_PURCHASES=1` overrides this (unverified path).
-`/api/state` and the chat context are read as the signed-in member: teen and child see only their own orders, requests and budget line (plus the family totals).
-
-**Model provider (parent only).** The "Model provider" dialog selects OpenAI / Codex API key (Responses API), Nebius Token Factory (base URL `https://api.tokenfactory.nebius.com/v1`,
-from Nebius' docs; the default model name is a guess, check it in the Nebius console) or any OpenAI-compatible endpoint (Chat Completions tool loop). The key stays in server memory only,
-is never returned (only the last 4 characters) or logged, is dropped when the base URL or provider changes and is gone after a restart; private and link-local base URLs are refused.
-Env alternative in `.env`: `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`. With a key but without idealo sign-in the model uses the mock catalogue.
-Signing in with a ChatGPT/Codex subscription (OAuth) is not built; API keys only. Code: `src/llm-provider.js`.
-
-**Demo links.** `?as=parent|teen|child` signs in as that member and `?q=<text>` fills the chat, e.g. `http://localhost:6274/?as=child&q=headphones`.
-
-**Offline chat mode.** When `OPENAI_API_KEY` is unset, the chat answers deterministically from the idealo mock (no LLM) and the status endpoint reports `mode: "offline-mock"`.
-
-**Not tested:** a real OpenAI key, a real Nebius key (the provider path ran only against the local fake server: `node scripts/fake_llm.mjs`, then `FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs`, 43 of 43), live idealo OAuth,
-the `ALLOW_UNVERIFIED_LIVE_PURCHASES` path, and the UI clicked through in a browser (headless screenshots at 1280px only; purchase status cards, approve/reject with a pending request, light theme,
-a 390px phone with data, the provider dialog and keyboard focus were never seen rendered).
-
-**Mock catalogue.** The idealo mock has 13 products (was 4) with fictional shops, shipping, delivery, EANs with valid check digits, 30-day histories, one product per discount verdict
-and a second injection text in a shop note. The data is INVENTED (`_meta.source` says so); real idealo response shapes and prices are unverified until the live smoke test (#3).
-
-## First-time GitHub setup (on your Mac, from `~/Documents/M1_20230921/src/genAI/12_family_shopper_agent`)
+## For the team: first-time GitHub setup (from your clone)
 ```bash
 brew install gh                      # if missing
 gh auth login                        # if not logged in as mikomeller
@@ -121,10 +163,10 @@ gh auth refresh -s project           # Projects scope
 python3 scripts/setup_github.py --dry-run   # check, no network
 python3 scripts/setup_github.py             # creates repo, labels, milestones, Project, fields, 40 issues (7 epics), epic links
 ```
-The script creates the **private** repo `mikomeller/12_family_shopper_agent`, makes the first commit and pushes.
+The script creates the repo `mikomeller/12_family_shopper_agent` (now public), makes the first commit and pushes.
 It is safe to re-run. If your Project already has another number, pass `--project-number <N>`.
 
-Then, once, in the Project: **New view → Board → Column by: Stage**, and under **Workflows** enable
+Then, once, in the Project: **New view → Board → Column by: Stage**. Under **Workflows** enable
 **Auto-add to project** for this repo so new issues land on the board.
 
 ## Branches
@@ -136,6 +178,6 @@ python3 scripts/create_collaborator_branches.py
 ```
 Covers accepted collaborators and pending invitations (owner skipped). Re-run after inviting new people.
 
-## Before the hackathon kickoff
+## For the team: Boris setup
 Docker running · `brew install --cask affinidi-ai/tap/boris` · `boris doctor` ·
 `boris login --url https://trustboris.ai` · use Chrome (not Safari). See milestone **M0 Pre-kickoff**.

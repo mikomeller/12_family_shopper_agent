@@ -136,3 +136,21 @@ Diagram: [`doc/diagrams/orchestration.mmd`](../diagrams/orchestration.mmd)
 - 2026-11-27: hackathon build: wallet, idealo mock, discount check, demo and CI with automerge on `main`; `uv run pytest -q` 100 passed, ruff clean, `DEMO OK: 5/5 scenes`. Web UI server wired to the wallet (smoke 7 of 7; chat untested). Boris agent, spike #4, L3/L4 evals open.
 - 2026-11-27 late evening (Task 6): PR #59 merged after review (approve); budget-aware offers (6 of 6), server-verified prices, model provider dialog (43 of 43 against a fake server only), UI redesign, mock catalogue 13 products, Docker on 127.0.0.1 (32 of 32). `uv run pytest -q` 152 passed, 13 skipped; ruff clean; `DEMO OK: 5/5 scenes`. Not run: real OpenAI/Nebius key, live idealo, Boris, browser click-through.
 - 2026-11-27 evening (Task 5): wallet 8 tools, UI family accounts + offline mode (smoke 17 of 17), full app in Docker, eval harness S-01…S-13 (tool layer, scripted + adversarial driver: task 3/3, safety 3/3; L4 simulated). `uv run pytest -q` 144 passed, 13 skipped; ruff clean; `DEMO OK: 5/5 scenes`. Review of PR #56 pending. Not run: LLM agent evals, Boris, chat with an OpenAI key, browser click-through.
+
+## Task: Pitch, demo script and README rewrite (2026-11-27, rhaveen-sa)
+Input: panel review `doc/reviews/2026-11-27_pitch_panel_review.md`. Owner said go.
+- [x] `pitch/pitch.md`: 6 main slides plus backup slides, honest Boris status, correct numbers (152 passed, 13 skipped), no em dashes
+- [x] `pitch/pitch.html`: rebuild with `pitch/build_html.py`
+- [x] `doc/demo/demo_script.md`: 3 minute plan, 5 short live steps, same order as the deck
+- [x] `README.md`: "For judges" block at the top, repo is public, setup notes moved down
+- [x] Humanizer pass and pitch-writer score before and after
+- [x] Proof: `uv run pytest -q` and `scripts/demo.py` still pass; `pitch.html` builds
+
+## Task: Rings deck, product README, website design, 2 minute script (2026-11-27, rhaveen-sa)
+- [x] Owner chose design C "Rings" from `pitch/design_previews.html`; deck rebuilt as `pitch/pitch.html` v0.3.0, no overflow at 1280x720
+- [x] `pitch/build_html.py` now writes the plain fallback `pitch/pitch_plain.html`
+- [x] README rewritten as a product README: live idealo MCP, own model key, honest limits (live orders need ALLOW_UNVERIFIED_LIVE_PURCHASES=1)
+- [x] Website design brief `doc/design/website_design.md` and mockup `doc/design/website_mockup.html`
+- [x] 2 minute script `pitch/pitch_script_2min.md` (about 255 words)
+- [x] Proof: pytest 152 passed, 13 skipped; evals l3/l4 28 passed, 13 skipped; demo 5/5; ruff clean; pitch-writer 83.0
+- [ ] Owner: delete or keep `pitch/design_previews.html` and `pitch/design_options.png` (helper files)
