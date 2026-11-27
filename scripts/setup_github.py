@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Author:    mikomeller
-Version:   0.1.0
+Version:   0.1.2
 Filename:  setup_github.py
 Pathname:  scripts/setup_github.py
 Purpose:   One-shot, re-runnable GitHub setup for 12_family_shopper_agent, run on your Mac:
@@ -10,7 +10,10 @@ Purpose:   One-shot, re-runnable GitHub setup for 12_family_shopper_agent, run o
              3. labels and milestones
              4. user Project "12_family_shopper_agent" (found or created) + custom fields
              5. backlog issues from backlog.json, added to the Project with field values
+             6. epic -> story links: an issue with "parent" becomes a sub-issue of that epic
            Existing repo, labels, milestones, fields and issues are reused, never deleted.
+           Field values (Stage, Priority, ...) are set only on issues created in this run,
+           so a re-run never moves cards the team has already moved on the board.
 Usage:     gh auth login                     # once, if gh is not logged in
            gh auth refresh -s project        # once, adds the Projects scope
            python3 scripts/setup_github.py --dry-run   # offline: validate + print every command
@@ -88,6 +91,10 @@ def load_backlog(path: Path) -> dict:
         errors += [f"{title}: unknown label '{lb}'" for lb in issue.get("labels", []) if lb not in labels]
         if issue.get("milestone") and issue["milestone"] not in milestones:
             errors.append(f"{title}: unknown milestone '{issue['milestone']}'")
+        if issue.get("parent") and issue["parent"] not in {i["title"] for i in data["issues"]}:
+            errors.append(f"{title}: unknown parent '{issue['parent']}'")
+        if issue.get("parent") == title:
+            errors.append(f"{title}: is its own parent")
         for name, value in issue.get("fields", {}).items():
             if name not in fields:
                 errors.append(f"{title}: unknown field '{name}'")
@@ -111,7 +118,7 @@ def check_prereqs(r: Runner) -> None:
 
 
 def ensure_local_git(r: Runner) -> None:
-    print("[1/6] Local git repository")
+    print("[1/7] Local git repository")
     if not (ROOT / ".git").exists():
         r.run("git", ["init", "-b", "main"])
     if not r.ok("git", ["rev-parse", "--verify", "HEAD"]):
@@ -123,21 +130,27 @@ def ensure_local_git(r: Runner) -> None:
 
 
 def ensure_repo(r: Runner) -> None:
-    print(f"[2/6] GitHub repository {FULL_REPO}")
-    if not r.ok("gh", ["repo", "view", FULL_REPO, "--json", "name"]):
-        r.run("gh", ["repo", "create", FULL_REPO, "--private", "--description", DESCRIPTION,
-                     "--source", str(ROOT), "--remote", "origin", "--push"])
-        print("  created (private) and pushed")
-        return
-    print("  exists")
+    """Create the GitHub repo if missing, make sure 'origin' exists, push if the branch has no upstream.
+    gh's own --source/--remote/--push handling is not used: if it fails half-way (repo created, push
+    skipped) a re-run could not recover."""
+    print(f"[2/7] GitHub repository {FULL_REPO}")
+    if r.ok("gh", ["repo", "view", FULL_REPO, "--json", "name"]):
+        print("  exists")
+    else:
+        r.run("gh", ["repo", "create", FULL_REPO, "--private", "--description", DESCRIPTION])
+        print("  created (private)")
     if not r.ok("git", ["remote", "get-url", "origin"]):
         r.run("git", ["remote", "add", "origin", f"https://github.com/{FULL_REPO}.git"])
-        res = r.run("git", ["push", "-u", "origin", "HEAD"], check=False)
-        print("  pushed" if res.returncode == 0 else f"  push failed, push manually:\n  {res.stderr.strip()}")
+        print("  remote 'origin' added")
+    if r.ok("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]):
+        print("  branch already tracks a remote branch; push skipped")
+        return
+    r.run("git", ["push", "-u", "origin", "HEAD"])
+    print("  pushed")
 
 
 def ensure_labels_and_milestones(r: Runner, labels: list[dict], milestones: list[dict]) -> None:
-    print("[3/6] Labels and milestones")
+    print("[3/7] Labels and milestones")
     for lb in labels:
         r.gh(["label", "create", lb["name"], "--color", lb["color"], "--description",
               lb["description"], "--force", "-R", FULL_REPO])
@@ -151,7 +164,7 @@ def ensure_labels_and_milestones(r: Runner, labels: list[dict], milestones: list
 
 
 def ensure_project(r: Runner, number: str | None) -> tuple[str, str]:
-    print(f"[4/6] Project '{PROJECT_TITLE}'")
+    print(f"[4/7] Project '{PROJECT_TITLE}'")
     listing = r.gh_json(["project", "list", "--owner", OWNER, "--format", "json", "--limit", "100"])
     projects = (listing or {}).get("projects", [])
     match = next((p for p in projects
@@ -173,7 +186,7 @@ def ensure_project(r: Runner, number: str | None) -> tuple[str, str]:
 
 
 def ensure_fields(r: Runner, num: str, wanted: dict[str, list[str]]) -> dict:
-    print("[5/6] Project fields")
+    print("[5/7] Project fields")
 
     def current() -> dict:
         data = r.gh_json(["project", "field-list", num, "--owner", OWNER, "--format", "json", "--limit", "100"])
@@ -191,14 +204,16 @@ def ensure_fields(r: Runner, num: str, wanted: dict[str, list[str]]) -> dict:
     return current()
 
 
-def ensure_issues(r: Runner, num: str, pid: str, issues: list[dict], fields: dict) -> None:
-    print("[6/6] Issues -> Project")
+def ensure_issues(r: Runner, num: str, pid: str, issues: list[dict], fields: dict) -> dict[str, str]:
+    """Create missing issues and add them to the Project. Returns title -> issue URL."""
+    print("[6/7] Issues -> Project")
     existing = r.gh_json(["issue", "list", "-R", FULL_REPO, "--state", "all", "--limit", "500",
                           "--json", "title,url"]) or []
     by_title = {i["title"]: i["url"] for i in existing}
     created = reused = 0
     for issue in issues:
         url = by_title.get(issue["title"])
+        is_new = url is None
         if url:
             reused += 1
         else:
@@ -208,12 +223,15 @@ def ensure_issues(r: Runner, num: str, pid: str, issues: list[dict], fields: dic
             if issue.get("milestone"):
                 args += ["--milestone", issue["milestone"]]
             out = r.gh(args)
-            url = out.splitlines()[-1] if out else "<ISSUE_URL>"
+            url = out.splitlines()[-1] if out else f"<URL of '{issue['title']}'>"
+            by_title[issue["title"]] = url
             created += 1
             if not r.dry_run:
                 time.sleep(1)  # stay well below GitHub's content-creation rate limit
         item = r.gh_json(["project", "item-add", num, "--owner", OWNER, "--url", url, "--format", "json"])
         item_id = item["id"] if item else "<ITEM_ID>"
+        if not is_new:
+            continue  # keep the Stage/Priority the team set on the board
         for name, value in issue.get("fields", {}).items():
             if r.dry_run:
                 field_id, option_id = f"<{name}>", f"<{value}>"
@@ -227,6 +245,50 @@ def ensure_issues(r: Runner, num: str, pid: str, issues: list[dict], fields: dic
             r.gh(["project", "item-edit", "--id", item_id, "--project-id", pid,
                   "--field-id", field_id, "--single-select-option-id", option_id])
     print(f"  issues created: {created}, reused: {reused}")
+    return by_title
+
+
+def ensure_hierarchy(r: Runner, issues: list[dict], urls: dict[str, str]) -> None:
+    """Link every issue that names a 'parent' as a sub-issue of that epic (GitHub sub-issues REST API).
+    Already linked children are skipped; a failed link is reported and does not stop the run."""
+    print("[7/7] Epic -> story links (sub-issues)")
+    api = f"repos/{FULL_REPO}/issues"
+
+    def number(title: str) -> str:
+        url = urls.get(title, "")
+        tail = url.rstrip("/").rsplit("/", 1)[-1]
+        return tail if tail.isdigit() else f"<number of '{title}'>"
+
+    linked = skipped = failed = 0
+    children_of: dict[str, set[str]] = {}
+    for issue in issues:
+        parent = issue.get("parent")
+        if not parent:
+            continue
+        p_no, c_no = number(parent), number(issue["title"])
+        if r.dry_run:
+            print("  $", f"gh api -X POST {api}/{p_no}/sub_issues -F sub_issue_id=<id of #{c_no}>")
+            linked += 1
+            continue
+        if p_no not in children_of:
+            res = r.run("gh", ["api", "--paginate", f"{api}/{p_no}/sub_issues?per_page=100",
+                               "--jq", ".[].number"], check=False)
+            children_of[p_no] = set(res.stdout.split()) if res.returncode == 0 else set()
+        if c_no in children_of[p_no]:
+            skipped += 1
+            continue
+        child_id = r.gh(["api", f"{api}/{c_no}", "--jq", ".id"])
+        res = r.run("gh", ["api", "-X", "POST", f"{api}/{p_no}/sub_issues", "-F", f"sub_issue_id={child_id}"],
+                    check=False)
+        if res.returncode == 0:
+            linked += 1
+        else:
+            failed += 1
+            reason = res.stderr.strip().splitlines()[-1] if res.stderr.strip() else "unknown"
+            print(f"  WARNING could not link #{c_no} under #{p_no}: {reason}")
+    print(f"  linked: {linked}, already linked: {skipped}, failed: {failed}")
+    if failed:
+        print("  Failed links can be added by hand: open the epic -> 'Create sub-issue' menu -> 'Add existing issue'.")
 
 
 # ---------------------------------------------------------------- main
@@ -248,7 +310,8 @@ def main() -> None:
         ensure_labels_and_milestones(r, backlog["labels"], backlog["milestones"])
         num, pid = ensure_project(r, args.project_number)
         fields = ensure_fields(r, num, backlog["fields"])
-        ensure_issues(r, num, pid, backlog["issues"], fields)
+        urls = ensure_issues(r, num, pid, backlog["issues"], fields)
+        ensure_hierarchy(r, backlog["issues"], urls)
     except CmdError as exc:
         sys.exit(f"\nFAILED:\n{exc}\nFix the cause and re-run; finished steps are skipped.")
     print(f"\nDone. Repo: https://github.com/{FULL_REPO}  Project: https://github.com/users/{OWNER}/projects/{num}")

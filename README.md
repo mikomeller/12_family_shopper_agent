@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.2
+Version:   0.1.4
 Filename:  README.md
 Pathname:  README.md
 Purpose:   Overview, structure and first-time setup of 12_family_shopper_agent
@@ -30,8 +30,11 @@ Research: [`doc/research/affinidi_boris_idealo.md`](doc/research/affinidi_boris_
 config/                   family_budget.example.yaml (copy to family_budget.yaml)
 doc/research/             research and spike results
 doc/diagrams/             Mermaid diagrams (before code)
-doc/tasks/                todo.md (plan) and lessons.md
-scripts/                  setup_github.py + backlog.json
+doc/agents/               orchestrator + subagents for Claude Code; copy to .claude/agents/, then: claude --agent orchestrator
+doc/evals/                eval_plan.md (gates, eval levels, scenarios)
+doc/handover/             HANDOVER.md (state, decisions, how to start)
+doc/tasks/                todo.md (plan), pending.md (next steps) and lessons.md
+scripts/                  setup_github.py + backlog.json, board.py (board in the terminal)
 ```
 
 ## First-time GitHub setup (on your Mac, from `~/Documents/M1_20230921/src/genAI/12_family_shopper_agent`)
@@ -40,7 +43,7 @@ brew install gh                      # if missing
 gh auth login                        # if not logged in as mikomeller
 gh auth refresh -s project           # Projects scope
 python3 scripts/setup_github.py --dry-run   # check, no network
-python3 scripts/setup_github.py             # creates repo, labels, milestones, Project, fields, 23 issues
+python3 scripts/setup_github.py             # creates repo, labels, milestones, Project, fields, 40 issues (7 epics), epic links
 ```
 The script creates the **private** repo `mikomeller/12_family_shopper_agent`, makes the first commit and pushes.
 It is safe to re-run. If your Project already has another number, pass `--project-number <N>`.

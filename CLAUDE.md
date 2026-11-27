@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.1
+Version:   0.1.3
 Filename:  CLAUDE.md
 Pathname:  CLAUDE.md
 Purpose:   Project rules and context for AI assistants working in 12_family_shopper_agent
@@ -14,7 +14,14 @@ A family shopping agent searches and compares products via the official **idealo
 and family monthly spending caps. Boris adds caller identity, MCP tool gating per role,
 screening, throttling, caching and backup models.
 
-Research: `doc/research/affinidi_boris_idealo.md` · Diagrams: `doc/diagrams/`
+Research: `doc/research/affinidi_boris_idealo.md` · Diagrams: `doc/diagrams/` · Evals: `doc/evals/eval_plan.md`
+State and next steps: `doc/handover/HANDOVER.md` · `doc/tasks/pending.md`
+
+## Orchestration
+Start with `claude --agent orchestrator`. It works from the GitHub Project board (`scripts/board.py`) and delegates to
+`architect` and `reviewer` (Opus) and `wallet-dev`, `test-eval`, `docs-demo` (Sonnet) in `.claude/agents/`.
+Source of the agent files is `doc/agents/`; after a change run `mkdir -p .claude/agents && cp doc/agents/*.md .claude/agents/`.
+Board model: Epic = parent issue (`type:epic`), Story = sub-issue, Task = checkbox in the story.
 
 ## Rules
 - Read existing files and `doc/tasks/lessons.md` before every task.
