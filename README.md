@@ -60,7 +60,7 @@ If you see **Invalid redirect URI**, check that you are using the local address 
 
 Sample profiles are in `data/family.example.json`. Copy it to `data/family.json` for a local starting point, then edit the names and `spendingLimitEur` values or use the **+** button beside **Budget overview** in the app. Local profiles and purchase history are stored in `data/family.json`, which is ignored by Git.
 
-Product requests use each person's remaining demo budget. Clicking **Buy (mock)** in an offer table records that offer's listed price in the local ledger and updates the demo budget. It does not open a shop checkout, take payment, or place an order.
+Product requests use each person's remaining demo budget. For the same product, the assistant compares idealo shops by total price, including shipping when known, and highlights the cheapest listed option. Clicking **Buy (mock)** in an offer table records that offer's listed price in the local ledger and updates the demo budget. It does not open a shop checkout, take payment, or place an order.
 
 The app reads its shopping instructions from `skills/family-shopper/SKILL.md`. The skill guides the assistant; the React app and local server load it and perform the MCP calls.
 

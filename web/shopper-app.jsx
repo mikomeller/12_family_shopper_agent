@@ -105,10 +105,15 @@ function FormattedReply({ content, memberName, onMockPurchase }) {
   return <div className="formatted-reply">{blocks.map((block, index) => {
     if (block.type === "table") {
       const [header, ...rows] = block.rows;
+      const pricedRows = rows.map((row, rowIndex) => ({ rowIndex, product: getProductFromRow(row) })).filter(({ product }) => product);
+      const cheapestRowIndex = pricedRows.length > 1 ? pricedRows.reduce((lowest, current) => current.product.priceEur < lowest.product.priceEur ? current : lowest, pricedRows[0]).rowIndex : null;
+      const sameProductOffers = new Set(pricedRows.map(({ product }) => product.productName.toLocaleLowerCase("de-DE"))).size === 1;
+      const cheapestLabel = sameProductOffers ? "Cheapest shop" : "Lowest price";
       return <div className="reply-table-wrap" key={index}><table className="reply-table"><thead><tr>{header.map((cell, cellIndex) => <th key={cellIndex}><InlineText text={cell} /></th>)}{memberName && <th>MOCK BUY</th>}</tr></thead><tbody>{rows.map((row, rowIndex) => {
         const product = getProductFromRow(row);
         const state = purchaseStates[`${index}-${rowIndex}`];
-        return <tr key={rowIndex}>{header.map((_, cellIndex) => <td key={cellIndex}><InlineText text={row[cellIndex] || "—"} /></td>)}{memberName && <td className="reply-action-cell">{product ? <><button className="mock-buy-button" type="button" disabled={state?.status === "pending" || state?.status === "done"} aria-label={`Record a mock purchase of ${product.productName} for ${memberName}`} onClick={() => recordFromRow(row, `${index}-${rowIndex}`)}>{state?.status === "pending" ? "Adding…" : state?.status === "done" ? "Added" : "Buy (mock)"}</button>{state?.status === "error" && <span className="mock-buy-error" role="alert">{state.message}</span>}</> : "—"}</td>}</tr>;
+        const isCheapest = rowIndex === cheapestRowIndex;
+        return <tr key={rowIndex} className={isCheapest ? "cheapest-option" : ""}>{header.map((_, cellIndex) => <td key={cellIndex}>{cellIndex === 0 ? <><InlineText text={row[cellIndex] || "—"} />{isCheapest && <span className="cheapest-tag">{cheapestLabel}</span>}</> : <InlineText text={row[cellIndex] || "—"} />}</td>)}{memberName && <td className="reply-action-cell">{product ? <><button className="mock-buy-button" type="button" disabled={state?.status === "pending" || state?.status === "done"} aria-label={`Record a mock purchase of ${product.productName} for ${memberName}`} onClick={() => recordFromRow(row, `${index}-${rowIndex}`)}>{state?.status === "pending" ? "Adding…" : state?.status === "done" ? "Added" : "Buy (mock)"}</button>{state?.status === "error" && <span className="mock-buy-error" role="alert">{state.message}</span>}</> : "—"}</td>}</tr>;
       })}</tbody></table></div>;
     }
     if (block.type === "list") return <ul key={index}>{block.items.map((item, itemIndex) => <li key={itemIndex}><InlineText text={item} /></li>)}</ul>;
