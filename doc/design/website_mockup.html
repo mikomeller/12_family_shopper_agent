@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<!--
+Author:    rhaveen-sa (with Claude Code)
+Version:   0.1.0
+Filename:  website_mockup.html
+Pathname:  doc/design/website_mockup.html
+Purpose:   One-page website mockup in the "Rings" design (same system as pitch/pitch.html). Reference for the colleague who
+           builds the real site. Spec and tokens: doc/design/website_design.md. System fonts only, no network needed.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Family Shopper Agent: pocket money with guardrails</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --ink: #1d1d1f; --mute: #6e6e73; --soft: #86868b; --card: #fff; --line: #e5e5ea;
+    --teen: #0a7cff; --teen2: #5ac8fa; --child: #28c76f; --child2: #a8e063; --fam: #ff8a00; --fam2: #ffc24b; --no: #ff3b30;
+    --r-lg: 28px; --r-md: 20px; --max: 1120px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-decoration: none; }
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+  section { padding: 112px 0; }
+  .eyebrow { font-size: 13px; font-weight: 600; color: var(--soft); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 14px; }
+  h1 { font-size: clamp(44px, 7vw, 84px); line-height: 1; font-weight: 700; letter-spacing: -.045em; }
+  h2 { font-size: clamp(32px, 4.4vw, 52px); line-height: 1.06; font-weight: 700; letter-spacing: -.035em; max-width: 760px; }
+  .lead { font-size: clamp(18px, 1.8vw, 22px); line-height: 1.45; color: var(--mute); margin-top: 22px; max-width: 520px; }
+  .grad { background: linear-gradient(90deg, var(--teen), var(--child) 55%, var(--fam)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* nav */
+  nav { position: sticky; top: 0; z-index: 5; backdrop-filter: saturate(180%) blur(20px); background: rgba(245,245,247,.75); border-bottom: 1px solid rgba(0,0,0,.06); }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; }
+  .logo .rings { width: 24px; }
+  nav ul { display: flex; gap: 28px; list-style: none; font-size: 14px; color: var(--mute); }
+  .btn { display: inline-block; font-size: 15px; font-weight: 600; border-radius: 99px; padding: 12px 22px; }
+  .btn.primary { background: var(--teen); color: #fff; }
+  .btn.ghost { color: var(--teen); }
+  nav .btn { padding: 7px 16px; font-size: 13px; }
+
+  /* hero */
+  .hero { padding: 96px 0 72px; }
+  .hero .wrap { display: grid; grid-template-columns: 1.1fr .9fr; gap: 56px; align-items: center; }
+  .cta { display: flex; gap: 12px; margin-top: 34px; flex-wrap: wrap; }
+  .chips { display: flex; gap: 8px; margin-top: 28px; flex-wrap: wrap; }
+  .chips span { font-size: 13px; font-weight: 600; background: var(--card); border-radius: 99px; padding: 7px 14px; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+
+  /* rings */
+  .rings { position: relative; }
+  .rings svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .rings .arc { transition: stroke-dashoffset 1.6s cubic-bezier(.2,.8,.2,1); }
+  .rings .cap { transition: transform 1.6s cubic-bezier(.2,.8,.2,1), opacity .3s; }
+  .rings .center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+  .rings .center b { font-size: 34px; font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .rings .center span { font-size: 13px; color: var(--soft); }
+
+  /* roles */
+  .roles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 56px; }
+  .card { background: var(--card); border-radius: var(--r-lg); padding: 32px; box-shadow: 0 4px 24px rgba(0,0,0,.04); }
+  .card .top { display: flex; align-items: center; gap: 16px; }
+  .card .top .rings { width: 64px; }
+  .card .amt { font-size: 34px; font-weight: 700; letter-spacing: -.035em; }
+  .card .role { font-size: 15px; font-weight: 600; }
+  .card p { font-size: 15px; line-height: 1.5; color: var(--mute); margin-top: 18px; }
+
+  /* how */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 56px; }
+  .step .n { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 700; margin-bottom: 18px; }
+  .step h3 { font-size: 21px; letter-spacing: -.02em; }
+  .step p { font-size: 15px; line-height: 1.5; color: var(--mute); margin-top: 8px; }
+
+  /* chat */
+  .chatsec .wrap { display: grid; grid-template-columns: .9fr 1.1fr; gap: 56px; align-items: center; }
+  .phone { background: var(--card); border-radius: 36px; padding: 28px; box-shadow: 0 24px 60px rgba(0,0,0,.08); display: grid; gap: 12px; }
+  .msg { max-width: 82%; font-size: 15px; line-height: 1.45; padding: 12px 16px; border-radius: 20px; }
+  .msg.me { justify-self: end; background: var(--teen); color: #fff; border-bottom-right-radius: 6px; }
+  .msg.bot { background: #f0f0f2; border-bottom-left-radius: 6px; }
+  .msg.no { background: #fff1f0; color: #b42318; }
+  .who-pill { justify-self: center; font-size: 12px; color: var(--soft); }
+
+  /* trust */
+  .dark { background: #000; color: #f5f5f7; }
+  .dark .lead, .dark p { color: #a1a1a6; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 56px; }
+  .panel { background: #1c1c1e; border-radius: var(--r-lg); padding: 36px; }
+  .panel h3 { font-size: 22px; letter-spacing: -.02em; margin-bottom: 18px; }
+  .panel ul { list-style: none; display: grid; gap: 12px; }
+  .panel li { font-size: 15px; line-height: 1.5; color: #c7c7cc; padding-left: 22px; position: relative; }
+  .panel li::before { content: ""; position: absolute; left: 0; top: 7px; width: 9px; height: 9px; border-radius: 50%; background: var(--teen); }
+  .panel.b li::before { background: var(--child); }
+  .panel .tag { display: inline-block; margin-top: 20px; font-size: 12px; font-weight: 600; color: #a1a1a6; border: 1px solid #3a3a3c; border-radius: 99px; padding: 5px 12px; }
+
+  /* numbers */
+  .nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-top: 56px; }
+  .num b { display: block; font-size: 48px; font-weight: 700; letter-spacing: -.04em; }
+  .num span { font-size: 15px; color: var(--mute); line-height: 1.45; }
+
+  /* final */
+  .final { text-align: center; }
+  .final h2 { margin: 0 auto; }
+  .final .rings { width: 120px; margin: 0 auto 32px; }
+  .cmd { display: inline-block; margin-top: 28px; font: 600 16px ui-monospace, "SF Mono", Menlo, monospace; background: var(--ink); color: #f5f5f7; border-radius: 14px; padding: 14px 22px; }
+  footer { border-top: 1px solid var(--line); padding: 28px 0 40px; font-size: 13px; color: var(--soft); }
+  footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+  @media (max-width: 860px) {
+    nav ul { display: none; }
+    .hero .wrap, .chatsec .wrap, .roles, .steps, .two { grid-template-columns: 1fr; }
+    .nums { grid-template-columns: 1fr 1fr; }
+    section { padding: 80px 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .rings .arc, .rings .cap, .reveal { transition: none; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="logo" href="#"><span class="rings" data-rings="22,55,5.5" data-static="1"></span>Family Shopper</a>
+    <ul><li><a href="#how">How it works</a></li><li><a href="#trust">Trust</a></li><li><a href="#tested">Tested</a></li></ul>
+    <a class="btn primary" href="https://github.com/mikomeller/12_family_shopper_agent">Get it on GitHub</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Family Shopper Agent</div>
+      <h1>Pocket money<br>with <span class="grad">guardrails.</span></h1>
+      <p class="lead">Your teen's agent finds the cheapest offer on idealo and orders on its own. It never spends more than the family allows.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/mikomeller/12_family_shopper_agent">Get it on GitHub</a>
+        <a class="btn ghost" href="#how">See how it works ›</a>
+      </div>
+      <div class="chips"><span>Live idealo MCP</span><span>Your own model and key</span><span>Limits in the wallet</span></div>
+    </div>
+    <div class="rings" data-rings="22,55,5.5"><div class="center"><b>378.02 €</b><span>family money left this month</span></div></div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap reveal">
+    <div class="eyebrow">One family, three rings</div>
+    <h2>Each person gets a ring. It fills as they spend.</h2>
+    <div class="roles">
+      <div class="card"><div class="top"><span class="rings" data-rings="100,0,0" data-only="0"></span><div><div class="amt">50 €</div><div class="role">Teen orders alone</div></div></div>
+        <p>The agent searches, compares shops and places the order. No parent is asked.</p></div>
+      <div class="card"><div class="top"><span class="rings" data-rings="0,100,0" data-only="1"></span><div><div class="amt">20 €</div><div class="role">Child asks a parent</div></div></div>
+        <p>Every order becomes a request. No money moves until a parent says yes.</p></div>
+      <div class="card"><div class="top"><span class="rings" data-rings="0,0,100" data-only="2"></span><div><div class="amt">400 €</div><div class="role">Whole family</div></div></div>
+        <p>All orders together stay under one family limit. It starts again each month.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="how" style="background:#fff">
+  <div class="wrap reveal">
+    <div class="eyebrow">How it works</div>
+    <h2>Set it up once. Then let the agent shop.</h2>
+    <div class="steps">
+      <div class="step"><div class="n" style="background:var(--teen)">1</div><h3>Connect idealo</h3><p>Sign in to the official idealo MCP. The agent searches real offers and price history.</p></div>
+      <div class="step"><div class="n" style="background:var(--child)">2</div><h3>Bring your own model</h3><p>Add your OpenAI, Nebius or any OpenAI-compatible key. It stays in memory, never on disk.</p></div>
+      <div class="step"><div class="n" style="background:var(--fam)">3</div><h3>Set the limits</h3><p>Choose who orders alone and who asks first. The wallet enforces every limit.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="chatsec">
+  <div class="wrap reveal">
+    <div>
+      <div class="eyebrow">Every "no" explains itself</div>
+      <h2>It says why. And how much is left.</h2>
+      <p class="lead">No silent failures. When an order does not fit, the agent tells your kid the reason and the amount left this month.</p>
+    </div>
+    <div class="phone">
+      <div class="who-pill">Signed in as Teen</div>
+      <div class="msg me">Order the PadPro controller.</div>
+      <div class="msg bot">The cheapest offer is 59.99 € at Technikwiese.</div>
+      <div class="msg bot no">That does not fit. You have 39.01 € left this month.</div>
+      <div class="msg me">Ok, what fits?</div>
+    </div>
+  </div>
+</section>
+
+<section id="trust" class="dark">
+  <div class="wrap reveal">
+    <div class="eyebrow">Trust</div>
+    <h2>The limits are not in the prompt. They are in the wallet.</h2>
+    <div class="two">
+      <div class="panel"><h3>The wallet holds the money</h3><ul>
+        <li>Checks the limit and writes the order in one step. Two fast orders cannot both get through.</li>
+        <li>Counts money in whole cents.</li>
+        <li>Refuses a child's direct order or a forged caller, whatever the model asks.</li>
+        <li>The server looks up every price itself. The model only names what to buy.</li></ul></div>
+      <div class="panel b"><h3>Affinidi TrustBoris controls the agent</h3><ul>
+        <li>Decides who is calling and which wallet tools they see.</li>
+        <li>Screens product texts from idealo before they reach the model.</li>
+        <li>Protects the idealo quota and the model budget.</li>
+        <li>Switches to a backup model when one fails.</li></ul>
+        <span class="tag">Designed in · connection in progress</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="tested">
+  <div class="wrap reveal">
+    <div class="eyebrow">Tested</div>
+    <h2>A driver that breaks every rule never got past a limit.</h2>
+    <div class="nums">
+      <div class="num"><b>152</b><span>automated tests pass</span></div>
+      <div class="num"><b>72/72</b><span>limit rules and tool contract</span></div>
+      <div class="num"><b>13 × 3</b><span>family scenarios, all pass</span></div>
+      <div class="num"><b>0</b><span>limits exceeded</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="final" style="background:#fff">
+  <div class="wrap reveal">
+    <div class="rings" data-rings="22,55,5.5"></div>
+    <h2>Hand your kids an agent,<br>not your <span class="grad">credit card.</span></h2>
+    <div><span class="cmd">docker compose up -d --build app</span></div>
+    <div class="cta" style="justify-content:center"><a class="btn primary" href="https://github.com/mikomeller/12_family_shopper_agent">Get it on GitHub</a></div>
+  </div>
+</section>
+
+<footer><div class="wrap"><span>Family Shopper Agent · AI Agents Berlin · Affinidi TrustBoris challenge 2026</span><span>Source code on GitHub</span></div></footer>
+
+<script>
+  const RINGS = [{ r: 104, a: '--teen', b: '--teen2' }, { r: 78, a: '--child', b: '--child2' }, { r: 52, a: '--fam', b: '--fam2' }];
+  const W = 18, MIN = 3; let uid = 0;
+  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  function ringSVG(p, only) {
+    const id = 'g' + (uid++);
+    const list = only === undefined ? RINGS.map((d, i) => [d, p[i]]) : [[{ ...RINGS[only], r: 78 }, 100]];
+    let defs = `<filter id="${id}s" x="-1" y="-1" width="3" height="3"><feDropShadow dx="0" dy="0" stdDeviation="2.2" flood-opacity=".28"/></filter>`, body = '';
+    list.forEach(([d, v], i) => {
+      const C = 2 * Math.PI * d.r, pv = Math.max(v, MIN);
+      defs += `<linearGradient id="${id}${i}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${css(d.b)}"/><stop offset="1" stop-color="${css(d.a)}"/></linearGradient>`;
+      body += `<circle cx="120" cy="120" r="${d.r}" fill="none" stroke="${css(d.a)}" stroke-opacity=".13" stroke-width="${W}"/>
+        <circle class="arc" data-c="${C}" data-p="${pv}" cx="120" cy="120" r="${d.r}" fill="none" stroke="url(#${id}${i})" stroke-width="${W}" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}" transform="rotate(-90 120 120)"/>
+        <g class="cap" data-p="${pv}" style="transform-origin:120px 120px;opacity:0"><circle cx="120" cy="${120 - d.r}" r="${W / 2}" fill="${css(d.a)}" filter="url(#${id}s)"/></g>`;
+    });
+    return `<svg viewBox="0 0 240 240" aria-hidden="true"><defs>${defs}</defs>${body}</svg>`;
+  }
+  function fill(el) {
+    el.querySelectorAll('.arc').forEach(a => a.style.strokeDashoffset = a.dataset.c * (1 - a.dataset.p / 100));
+    el.querySelectorAll('.cap').forEach(g => { const p = +g.dataset.p; g.style.transform = `rotate(${p >= 100 ? 0 : 3.6 * p}deg)`; g.style.opacity = p < 100 ? 1 : 0; });
+  }
+  document.querySelectorAll('.rings').forEach(el => {
+    el.insertAdjacentHTML('afterbegin', ringSVG((el.dataset.rings || '0,0,0').split(',').map(Number), el.dataset.only === undefined ? undefined : +el.dataset.only));
+  });
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return;
+    e.target.classList.add('in'); e.target.querySelectorAll('.rings').forEach(fill);
+    if (e.target.classList.contains('rings')) fill(e.target);
+    io.unobserve(e.target);
+  }), { threshold: .25 });
+  document.querySelectorAll('.reveal, .hero .rings, .final .rings').forEach(el => io.observe(el));
+  document.querySelectorAll('[data-static]').forEach(fill);
+</script>
+</body>
+</html>
