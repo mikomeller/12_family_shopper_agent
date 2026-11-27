@@ -1,0 +1,18 @@
+%% Author:    mikomeller
+%% Version:   0.1.0
+%% Filename:  idealo_mock.mmd
+%% Pathname:  doc/diagrams/idealo_mock.mmd
+%% Purpose:   Offline idealo mock MCP server: tools, JSON fixtures and the pure check_discount function
+flowchart LR
+    AG[Shopping agent] -->|MCP stdio| SRV["idealo-mock server<br/>(family_shopper.idealo_mock.server)"]
+    SRV --> T1[search_products]
+    SRV --> T2[get_product_details]
+    SRV --> T3[get_product_offers]
+    SRV --> T4[get_product_price_history]
+    SRV --> T5[check_discount]
+    T1 --> FX[("fixtures/products.json<br/>recorded-style fake data")]
+    T2 --> FX
+    T3 --> FX
+    T4 --> FX
+    T5 --> PF["discount_check.check_discount<br/>pure function, no I/O"]
+    FX -.->|"one description contains a prompt injection (plain data)"| T2
