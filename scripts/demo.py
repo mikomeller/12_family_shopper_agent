@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Author:    mikomeller
-# Version:   0.1.1
+# Version:   0.1.2
 # Filename:  demo.py
 # Pathname:  scripts/demo.py
 # Purpose:   Offline, deterministic walk-through of the five demo scenes against the real wallet and the idealo mock (no LLM, no network, no Boris)
@@ -94,6 +94,8 @@ def main() -> int:
         expect(o["remaining_personal_cents"] == 5000 - best["total_cents"], "personal budget reduced")
         expect(o["remaining_family_cents"] == 40000 - best["total_cents"], "family budget reduced; no parent involved")
 
+    book_cents = get_product_offers_impl("hobbit-pb")["offers"][0]["total_cents"]
+
     def scene2() -> None:
         say("Signed in: teen. Prompt: 'Order the SoundMax X1 headphones.'")
         offer = get_product_offers_impl("headphones-x1")["offers"][0]
@@ -102,12 +104,30 @@ def main() -> int:
         r = show("place_order", teen.place_order("SoundMax X1", offer["shop"], offer["deep_link"], offer["total_cents"]))
         expect(r["error_code"] == "PERSONAL_CAP_EXCEEDED", "wallet refuses: PERSONAL_CAP_EXCEEDED")
         expect(r["remaining_personal_cents"] is not None, "refusal states the amount left")
+        expect(r["reason"].endswith("A parent can step in: use request_approval."), "refusal says a parent can step in")
         say("    Trick: 'split it in two orders'")
         half = offer["total_cents"] // 2
         for i in (1, 2):
             h = show(f"half {i} ({fmt_eur(half)})", teen.place_order(f"SoundMax X1 part {i}", offer["shop"], offer["deep_link"], half))
             expect(h["ok"] is False and h["error_code"] == "PERSONAL_CAP_EXCEEDED", f"half {i} still refused")
         expect(count_orders() == before, "no order was added; spend never exceeds the cap")
+        say("Signed in: teen. Prompt: 'Ask a parent for the BrewPro coffee machine.'")
+        cm = get_product_offers_impl("coffee-genuine")["offers"][0]
+        say(f"    cheapest offer: {cm['shop']} {fmt_eur(cm['total_cents'])}")
+        c = show("check_budget", teen.check_budget(cm["total_cents"]))
+        expect(c["fits"] is False and c["needs_approval"] is True, "does not fit the teen's budget; a parent can step in")
+        r = show("place_order", teen.place_order("BrewPro", cm["shop"], cm["deep_link"], cm["total_cents"]))
+        expect(r["error_code"] == "PERSONAL_CAP_EXCEEDED", "order refused: PERSONAL_CAP_EXCEEDED")
+        expect(count_orders() == before, "no order, no spend")
+        q = show("request_approval", teen.request_approval("BrewPro", cm["shop"], cm["deep_link"], cm["total_cents"]))
+        expect(q["ok"] is True and q["status"] == "open", "open request created")
+        own = show("approve_request (teen, own request)", teen.approve_request(q["request_id"]))
+        expect(own["ok"] is False, "teen cannot approve his own request")
+        a = show("approve_request (parent)", parent.approve_request(q["request_id"]))
+        expect(a["ok"] is True and a["approved_by"] == "parent", "approved by parent")
+        expect(count_orders() == before + 1, "order recorded after the approval")
+        expect(a["remaining_personal_cents"] == 0, "teen's remaining budget is 0 (floored)")
+        expect(a["remaining_family_cents"] == 40000 - book_cents - cm["total_cents"], "counts against the family cap")
 
     def scene3() -> None:
         say("Signed in: child. Prompt: 'Order Der Hobbit.' (within the child's budget)")
@@ -142,7 +162,8 @@ def main() -> int:
         a = show("approve_request", parent.approve_request(q["request_id"]))
         expect(a["ok"] is True and a["approved_by"] == "parent", "approved by parent")
         expect(a["remaining_personal_cents"] == 0, "child's remaining budget is 0 (floored)")
-        fam = 40000 - 2 * book["total_cents"] - game["total_cents"]  # scene 1 also bought the book (teen)
+        coffee = get_product_offers_impl("coffee-genuine")["offers"][0]["total_cents"]
+        fam = 40000 - 2 * book["total_cents"] - coffee - game["total_cents"]  # scenes 1 and 2 spent for the teen
         expect(a["remaining_family_cents"] == fam, "counts against the family cap")
         rj = show("reject_request", parent.reject_request(q2["request_id"]))
         expect(rj["ok"] is True, "second request rejected")

@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.8
+Version:   0.1.9
 Filename:  todo.md
 Pathname:  doc/tasks/todo.md
 Purpose:   Plan and progress tracker for 12_family_shopper_agent (setup first, then the build backlog lives in the GitHub Project)
@@ -124,6 +124,23 @@ Diagram: [`doc/diagrams/orchestration.mmd`](../diagrams/orchestration.mmd)
 - [ ] LLM driver for L3; S-14 in the eval harness; live idealo verification so live purchases can be enabled
 - [ ] Open reviewer remarks; `src/cli.js` rewired or removed
 
+## Task 7 — Rounds four to seven (2026-11-27 evening)
+- [x] Rodrigo's four commits merged (#61): reconnect idealo, 12 tool rounds, confirm dialog before ordering, English replies
+- [x] UX flow rework: confirm dialog per role, result notice, state refresh, waiting badge, first-run steps
+- [x] Real model: owner's OpenAI key in the git-ignored `.env` on the demo machine; real-model findings fixed in the web prompt (offer rows need `#ref=`, loop when nothing fit)
+- [x] Guided story mode (#63): `?story=1`, "Play the story", real API calls, decision trail, deterministic assistant for its two questions
+- [x] Rule change (#69): a child orders alone within the budget, above it refused and a parent steps in; route `POST /api/family/request-approval`, chat tool `request_parent_approval`
+- [x] Budget-aware offers: "Within your budget" / "Above your budget — a parent can step in" with an Ask-a-parent button
+- [x] Eval harness invariant strengthened + self-check tests; scenarios S-15, S-16, S-17
+- [x] Pitch deck, README, handover, pending, lessons, prompt and orchestrator brought in line with the new rule (docs-demo)
+- [ ] Teen ask-a-parent path (PR #70): review pending, then merge
+- [ ] Human click-through of the UI and the story
+- [ ] Boris login, agent in Agent Builder, identity spike #4
+- [ ] Live idealo sign-in (live purchases refused until prices can be verified)
+- [ ] L3 with a real LLM (the driver is a stub)
+- [ ] Open remarks: `src/cli.js` bypasses the wallet; `/api/idealo/reconnect` needs no sign-in; unlimited open requests per child or teen; `GET /api/llm` readable by every member; auto-merge skipped when push and label arrive together; `main` unprotected
+Collaborators merged on their own: #62, #64 (rhaveen-sa), #66, #67 (c666agent666, `BorisResolver`, off by default).
+
 ## Open decisions
 - Does a parent-approved child order still count against the child's personal cap? Decided by the owner 2026-11-27: yes (A1).
 - Open: source of `sale_days` for the discount check. Decided 2026-11-27: a parent can reject a request; INFLATED blocks the order.
@@ -136,6 +153,7 @@ Diagram: [`doc/diagrams/orchestration.mmd`](../diagrams/orchestration.mmd)
 - 2026-11-27: hackathon build: wallet, idealo mock, discount check, demo and CI with automerge on `main`; `uv run pytest -q` 100 passed, ruff clean, `DEMO OK: 5/5 scenes`. Web UI server wired to the wallet (smoke 7 of 7; chat untested). Boris agent, spike #4, L3/L4 evals open.
 - 2026-11-27 late evening (Task 6): PR #59 merged after review (approve); budget-aware offers (6 of 6), server-verified prices, model provider dialog (43 of 43 against a fake server only), UI redesign, mock catalogue 13 products, Docker on 127.0.0.1 (32 of 32). `uv run pytest -q` 152 passed, 13 skipped; ruff clean; `DEMO OK: 5/5 scenes`. Not run: real OpenAI/Nebius key, live idealo, Boris, browser click-through.
 - 2026-11-27 evening (Task 5): wallet 8 tools, UI family accounts + offline mode (smoke 17 of 17), full app in Docker, eval harness S-01…S-13 (tool layer, scripted + adversarial driver: task 3/3, safety 3/3; L4 simulated). `uv run pytest -q` 144 passed, 13 skipped; ruff clean; `DEMO OK: 5/5 scenes`. Review of PR #56 pending. Not run: LLM agent evals, Boris, chat with an OpenAI key, browser click-through.
+- 2026-11-27 evening (Task 7): Teen and Child order within their budget, above it a parent steps in (owner decision); guided story `?story=1`; merged #44, #49, #50, #56, #59, #60, #61, #63, #65, #68, #69 (#65 was an empty commit, fixed in #68); collaborators merged #62, #64, #66, #67; PR #70 review pending. `uv run pytest -q` 191 passed, 16 skipped; ruff clean; `ui_wallet_smoke.mjs` (FAKE_LLM=1) 62 of 62; `offline_agent_budget_check.mjs` 10 of 10; `DEMO OK: 5/5 scenes`; 16 scenario files pass. Not run: Boris, live idealo, L3 with a real LLM, human click-through.
 
 ## Task: Pitch, demo script and README rewrite (2026-11-27, rhaveen-sa)
 Input: panel review `doc/reviews/2026-11-27_pitch_panel_review.md`. Owner said go.

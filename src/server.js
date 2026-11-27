@@ -1,5 +1,5 @@
 // Author:    rodrigo, mikomeller, rhaveen-sa
-// Version:   0.1.2
+// Version:   0.1.3
 // Filename:  server.js
 // Pathname:  src/server.js
 // Purpose:   Node server of the Family Shopper web app: chat with the model, idealo MCP (live or sample catalogue),
@@ -116,7 +116,7 @@ async function verifyOrder({ callerId, memberName, productName, priceEur, produc
 
 const stepIn = (reason) => `${String(reason || "").replace(/\s*A parent can step in: use request_approval\.\s*$/, "").trim()} A parent can step in.`;
 
-// Buy as the signed-in member. The wallet decides: fits -> place_order (child like teen); child above own budget but family ok -> 409 canAskParent, nothing recorded.
+// Buy as the signed-in member. The wallet decides: fits -> place_order (child and teen alike); child or teen above own budget but family ok -> 409 canAskParent, nothing recorded.
 async function recordMockPurchase(input) {
   const v = await verifyOrder(input);
   if (v.ok === false) return v;
@@ -186,7 +186,7 @@ const purchaseTool = {
 const approvalTool = {
   type: "function",
   name: "request_parent_approval",
-  description: "Ask a parent to approve a purchase that is above the child's own remaining budget (after record_mock_purchase answered canAskParent). Creates an open request only; nothing is ordered or spent until a parent approves.",
+  description: "Ask a parent to approve a purchase that is above the member's own remaining budget (child or teen) (after record_mock_purchase answered canAskParent). Creates an open request only; nothing is ordered or spent until a parent approves.",
   strict: true,
   parameters: {
     type: "object",
@@ -219,7 +219,7 @@ async function getInstructions(messages, callerId) {
     ? `\n\nResolved shopping member: ${selectedMember.name}. Remaining wallet budget: ${euro(selectedMember.remainingEur)}. The user has already named this member; do not ask who the request is for. Read the latest message as the shopping request and proceed with idealo search when it names a product or category. Ask a follow-up only if a genuinely necessary product detail is missing.`
     : "";
   return {
-    instructions: `${skill}\n\nCurrent Family Wallet budgets (source of truth; the wallet enforces all caps and may refuse; above a child's own budget a parent can step in):\n${JSON.stringify(profiles, null, 2)}${memberContext}\n\nAlways respond to the user in English. Keep product, brand, and shop names in their original form. For live shopping use only the idealo MCP tools listed in the tool allowlist. For any mock purchase, call record_mock_purchase; never represent a tool call as a real order.`,
+    instructions: `${skill}\n\nCurrent Family Wallet budgets (source of truth; the wallet enforces all caps and may refuse; above a child's or teen's own budget a parent can step in):\n${JSON.stringify(profiles, null, 2)}${memberContext}\n\nAlways respond to the user in English. Keep product, brand, and shop names in their original form. For live shopping use only the idealo MCP tools listed in the tool allowlist. For any mock purchase, call record_mock_purchase; never represent a tool call as a real order.`,
     memberName: selectedMember?.name || null,
   };
 }
@@ -229,7 +229,7 @@ async function getInstructions(messages, callerId) {
 async function enforceBudget(callerId, name, result) {
   if (name !== "get_product_offers" && name !== "search_products") return result;
   if (!result || result.error) return result;
-  const PARENT_NOTE = "Above the child's budget: the child cannot order these; a parent can step in (request_parent_approval).";
+  const PARENT_NOTE = "Above the member's own budget: they cannot order these; a parent can step in (request_parent_approval).";
   const NOTE = "No offer fits the caller's remaining budget. Do not present this product as buyable; tell the user how much is left and suggest cheaper alternatives.";
   try {
     const summary = { caller: callerId, omitted_over_budget: 0, remaining_personal_cents: null, remaining_family_cents: null, needs_approval: false };

@@ -1,5 +1,5 @@
 // Author:    mikomeller
-// Version:   0.1.3
+// Version:   0.1.4
 // Filename:  offline-agent.js
 // Pathname:  src/offline-agent.js
 // Purpose:   Deterministic offline shopper (no LLM): talks to the idealo mock MCP over stdio, answers with an offers table and a discount verdict
@@ -144,7 +144,7 @@ export async function offlineReply(messages, memberId, callWallet) {
     if (rows.length) {
       lines.push(`Offers from the sample catalogue (price including shipping, cheapest first${multi ? ", cheapest offer per product" : ""}):`, "", "| Offer | Shop | Total price |", "| --- | --- | --- |", ...rows);
       if (descriptions.length) lines.push("", ...descriptions);
-      if (budget.role === "child") lines.push("", "Within your budget: you can order this yourself.");
+      if (budget.role && budget.role !== "parent") lines.push("", "Within your budget: you can order this yourself.");
     }
     if (askLines.length) lines.push("", ...askLines);
     if (overTotal) lines.push("", `${overTotal} more offers are over your remaining budget and are not shown.`);

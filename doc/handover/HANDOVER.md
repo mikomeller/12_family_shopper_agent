@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.5
+Version:   0.1.6
 Filename:  HANDOVER.md
 Pathname:  doc/handover/HANDOVER.md
 Purpose:   Handover for whoever continues 12_family_shopper_agent (person or Claude Code session):
@@ -13,7 +13,7 @@ Work only in this folder (owner decision 2026-11-27); ask before cloning anywher
 ```bash
 cd ~/Documents/M1_20230921/src/genAI/12_family_shopper_agent
 uv sync                                        # install dependencies
-uv run pytest -q                               # expected: 152 passed, 13 skipped
+uv run pytest -q                               # expected: 191 passed, 16 skipped
 uv run python scripts/demo.py                  # offline demo, ends: DEMO OK: 5/5 scenes
 mkdir -p .claude/agents && cp doc/agents/*.md .claude/agents/   # install the agent definitions (once, and after every change)
 claude --agent orchestrator                    # orchestrator session with Opus/Sonnet subagents
@@ -32,7 +32,7 @@ through our own Family Wallet MCP, which enforces personal and family monthly ca
 | Repo (public), labels, milestones, Project, issues | done; `setup_github.py` run live: 7 epics + 10 stories, 30 links, 0 failures; later E7 (#45), #46-#48 and new stories #51-#55 (linked to their epics); `backlog.json` v0.1.4 (49 issues); ticket #25 under Epic #45 with the design assessment as comment |
 | CI `.github/workflows/ci.yml` + automerge (label `automerge`, squash) | done; verified live on PR #44 (0c6de28), PR #49 (55513dc), #50 and #56 (merge commit fe056fb); `main` has no branch protection |
 | Wallet design, server (8 tools: new `reject_request`, parent only; status `rejected`; `list_requests` accepts `rejected`; old databases migrated in `init_db`; story #51), seed script | on `main`; seed script has no guard before wiping the db |
-| Cap and contract tests L1 + L2 | 72 of 72 pass (`evals/results/2026-11-27_l1_l2.md`); full suite `uv run pytest -q` 152 passed, 13 skipped; `uv run ruff check .` clean |
+| Cap and contract tests L1 + L2 | 71 of 71 pass (rerun 2026-11-27 evening; report `evals/results/2026-11-27_l1_l2.md` may be older); full suite `uv run pytest -q` 191 passed, 16 skipped; `uv run ruff check .` clean |
 | idealo mock + fixtures | on `main`; 13 products (was 4), fictional shops, valid-check-digit EANs, 30-day histories, one product per discount verdict, two injection texts; data INVENTED; real idealo response shapes and prices unverified |
 | Discount check (`check_discount`, Epic E7, ticket #25) | designed and built; DC-01…DC-19 pass; corrected design `doc/design/discount_check.md` |
 | Offline demo `scripts/demo.py`, `doc/demo/demo_script.md` | `DEMO OK: 5/5 scenes`; demo script has a browser variant (not yet tried by anyone) |
@@ -40,7 +40,7 @@ through our own Family Wallet MCP, which enforces personal and family monthly ca
 | Boris CLI in Docker (`docker/boris/`) | CLI 0.1.35 runs; image now contains the Docker client, `boris doctor` shows Docker OK; `boris login` not done (owner); the boris service mounts `/var/run/docker.sock` |
 | Web UI (collaborator PR #33, Node/React, OpenAI) | merged; wallet-wired; simulated family accounts (account switcher Parent / Teen / Child, header `X-Family-Member`, 403 on a mismatching `memberName`, 401 without header); offline chat mode without `OPENAI_API_KEY` (`mode: "offline-mock"`); INFLATED blocks in the purchase path; `node scripts/ui_wallet_smoke.mjs` 32 offline steps, 32 of 32 via Docker; redesigned (role switcher, offer cards, status cards, budgets panel, dark theme, `?as=` / `?q=` demo links); `/api/state` and chat context are read as the signed-in member; not tested: a real OpenAI or Nebius key, live idealo OAuth, UI clicked through in a browser (only headless screenshots at 1280px); `src/cli.js` (`npm start`) still uses its own float budget file and bypasses the wallet (story #53) |
 | Full application in Docker (story #54) | `docker compose up -d --build app` serves `http://localhost:6274` (published on `127.0.0.1` only; rebuilt, offline smoke 32 of 32); wallet db in volume `app-data`; runbook `doc/runbooks/docker_app.md`; container currently running on the owner's Mac |
-| Eval harness (stories #37-#39) | `evals/harness.py`, `drivers.py`, scenarios S-01...S-13, `test_l3_scenarios.py`, `test_l4_gating.py`, `run_report.py`; scripted and adversarial driver at the tool layer: task 3/3, safety 3/3 (`evals/results/2026-11-27_l3_l4.md`); L4 is a SIMULATION of Boris gating; 13 tests skip without an LLM key, LLM driver is a stub |
+| Eval harness (stories #37-#39) | `evals/harness.py`, `drivers.py`, scenarios S-01...S-13, S-15, S-16, S-17 (16 files, 3 runs each, all pass), `test_l3_scenarios.py`, `test_l4_gating.py`, `run_report.py`; scripted and adversarial driver at the tool layer: task 3/3, safety 3/3 (`evals/results/2026-11-27_l3_l4.md`); L4 is a SIMULATION of Boris gating; 13 tests skip without an LLM key, LLM driver is a stub |
 | Orchestrator + 5 subagents (source `doc/agents/`) | written and installed |
 | Independent review | earlier round: approve; PR #56 (merged before review): "changes required", two blocking findings in the web UI purchase path (B1 discount check failed open, B2 client named the price); both fixed in PR #59 and re-attacked by the reviewer: approve, nothing blocking; PR #59 merged by auto-merge, CI green, merge commit a31a110 |
 | Budget-aware offers (owner's bug "earphones for 299 € with a 20 € limit") | wallet decides per offer (`check_budget(price_cents)` → `fits`); offline assistant lists only fitting offers; LLM tool path filters `get_product_offers` (`enforceBudget`, fails closed); `node scripts/offline_agent_budget_check.mjs` 6 of 6; limits: mock search results carry no price, live catalogue not filtered, alternatives are only affordable items |
@@ -54,6 +54,26 @@ through our own Family Wallet MCP, which enforces personal and family monthly ca
 - README is a product README (live idealo MCP, own model key). Panel review and scores: `doc/reviews/2026-11-27_pitch_panel_review.md`.
 - Design system "Rings": website brief and mockup in `doc/design/website_design.md` and `website_mockup.html`; the web app uses it (`doc/design/app_ui_rings.md`).
 - PR #62 (pitch, README, designs) has the `automerge` label. The app restyle is on branch `rhaveen-sa-ui-rings`.
+
+## Update 2026-11-27 late evening (rounds four to seven)
+All facts below are verified unless marked.
+- **Rule change (owner, 2026-11-27 evening).** Teen (50 EUR) and Child (20 EUR) order on their own up to their monthly budget. Above it the wallet refuses and a parent steps in: the member asks, the parent approves or rejects. A parent-approved order counts against the member's budget and the family budget (400 EUR). Child: PR #69 (route `POST /api/family/request-approval`, chat tool `request_parent_approval`). Teen: PR #70, review pending.
+- **Budget-aware offers.** "Within your budget: you can order this yourself." / "Above your budget — a parent can step in" with an Ask-a-parent button.
+- **Guided story (PR #63).** `http://localhost:6274/?story=1`, button "Play the story". Real API calls, decision trail; the story's two questions use the deterministic assistant (`scripted: true`). Case 1: Child asks for Der Hobbit, idealo comparison highlights Shop A (10,99 EUR), Child orders, 9,01 EUR left. Case 2: Child asks for a board game (30,98 EUR), refused above the budget, Child asks a parent, Parent approves, family budget pays (358,03 EUR left), child's own budget 0,00 EUR. The gateway steps in the story are SIMULATED and labelled so: TrustBoris is not connected.
+- **Merged to `main` today by auto-merge after CI:** #44, #49, #50, #56, #59, #60, #61, #63, #65 (an EMPTY commit with a misleading title: a text replacement failed unnoticed; fixed properly in #68), #68, #69.
+- **Merged by collaborators on their own:** #62 and #64 (rhaveen-sa: pitch deck, README, Rings UI design, light/dark switch), #66 and #67 (c666agent666: `BorisResolver`, takes the caller from the TrustBoris-forwarded identity; OFF by default, enabled with `WALLET_IDENTITY_RESOLVER=boris`; when on it trusts the request `_meta` without a signature check, so it is only safe when the wallet is reachable solely through the Boris gateway).
+- **Open PRs:** #70 (teen ask-a-parent path; review pending). #33 (rodrigo-agent; its content is on `main` since #61; left open for the owner).
+- **Rodrigo's four commits merged (#61):** idealo reconnect, 12 tool rounds, confirm dialog before ordering, English replies. UX rework: confirm dialog per role, result notice, state refresh, waiting badge, first-run steps.
+- **Real model.** The owner supplied an OpenAI key. It lives ONLY in the git-ignored `.env` on the demo machine. Chat with the real model works against the mock catalogue. The key was pasted in a chat: revoke it after the event. Real-model findings fixed in the web prompt: offer rows need `#ref=`; the model looped when nothing fit.
+- **Eval harness:** invariant strengthened (no order above a member's budget without a parent's approval) plus self-check tests.
+- **Verified now:** `uv run pytest -q` 191 passed, 16 skipped; ruff clean; `FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs` 62 of 62; `node scripts/offline_agent_budget_check.mjs` 10 of 10; `scripts/demo.py` 5/5; a 30-thread race on the teen's budget never exceeds 50 EUR; the story replayed in headless Chrome against a container (screenshot checked) for the #69 version. Docker endpoint `http://localhost:6274` (127.0.0.1 only) runs the #69 build.
+- **Pitch deck, README, handover, lessons updated** for the new rule; `pitch_plain.html` regenerated from `pitch.md` with `uv run --with markdown python pitch/build_html.py`.
+
+### How to run the story
+1. `docker compose up -d --build app` (or keep the running container), open `http://localhost:6274/?story=1`.
+2. Press "Play the story". Expect the two cases above, a decision trail, and the final family budget 358,03 EUR.
+3. Fallback without a browser: `PYTHONPATH=src uv run python scripts/demo.py` ends with `DEMO OK: 5/5 scenes`.
+4. Say on stage: TrustBoris is not connected, the gateway steps are simulated, the Family Wallet enforces the limits.
 
 ## How the orchestration works
 Diagram: [`doc/diagrams/orchestration.mmd`](../diagrams/orchestration.mmd).
@@ -95,7 +115,12 @@ makes it the main session. To make it the default, add `{"agent": "orchestrator"
 | 2026-11-27: the server, not the client, names price and discount | review finding B2; INFLATED and unverifiable discounts blocked; live-catalogue purchases refused until the price can be verified |
 | 2026-11-27: the wallet decides whether an offer fits the caller's budget | owner's bug report; every scenario set needs a "what is offered" check per role |
 | 2026-11-27: model key held in server memory only, API keys only (no OAuth) | key never leaves the process; private and link-local base URLs refused |
-| Questions to the owner are numbered points | owner preference |
+| Questions to the owner are numbered points | owner preference (confirmed 2026-11-27 evening) |
+| 2026-11-27 evening owner: Teen and Child order on their own up to their monthly budget (Teen 50 EUR, Child 20 EUR); above it the trust layer refuses and a parent steps in (member asks, parent approves or rejects) | replaces "child: every order is a request" and "teen: over the cap refused" |
+| 2026-11-27 evening owner: a parent-approved order counts against the member's budget and the family budget (400 EUR) | cap rules, extends A1 |
+| 2026-11-27 owner: Rhaveen stays at write access | admin is impossible on a personally owned repo |
+| Guided story uses the deterministic assistant for its two questions | the real model behaved differently from the fake one twice; the story must be repeatable |
+| `BorisResolver` stays OFF by default (`WALLET_IDENTITY_RESOLVER=boris` enables it) | it trusts `_meta` without a signature check: only safe behind the Boris gateway |
 
 ## Open decisions (for the owner)
 - Where `sale_days` for the discount check comes from.
@@ -117,6 +142,8 @@ makes it the main session. To make it the default, add `{"agent": "orchestrator"
 - Boris connection details, OpenAI key and idealo sign-in: checked today, branch `rodrigo-agent` and PR #33 contain none of them (`.env.example` has an empty key; idealo tokens are in the git-ignored `.data/idealo-oauth.json` on the machine that signed in). Asked from the owner in #55; secrets must never be pushed to this public repo.
 - The subagent `tools` lists use Claude Code's tool names as documented on 2026-11-27.
 
+- Unverified (2026-11-27 evening): TrustBoris forwards identity as `BorisResolver` assumes (code merged in #66/#67, never run against Boris); a human click-through of the UI; the real model with the PR #70 teen path; live idealo sign-in.
+
 ## Risks
 | Risk | Effect | Mitigation |
 |---|---|---|
@@ -132,6 +159,14 @@ makes it the main session. To make it the default, add `{"agent": "orchestrator"
 | Open reviewer remarks (non-blocking) | `GET /api/llm` readable by every member (base URL, model, last 4 key characters); teen and child see family-wide totals; `get_product_details` / `get_product_price_history` not budget-filtered (no offers inside); token TTL of 1 day never refreshed by the Node server (after 24 h wallet calls fail until restart); migration re-reads schema outside the transaction; `uv:latest` unpinned in the app image; seed script wipes the db without a guard | fix in the next round; restart the server after 24 h until then |
 | Budget filter gaps | mock search results carry no price and the live catalogue is not filtered, so those offers are not filtered; alternatives are only affordable items | the wallet still refuses any order over budget |
 | Live purchases refused (501) | the live idealo catalogue cannot be bought through the UI | live idealo verification (#3), then enable |
+| Collaborators merge to `main` without review; `main` has no branch protection | an untested or rule-changing PR lands (#62, #64, #67 did) | `git fetch` and merge `origin/main` before every verification run; owner question 3 in `doc/tasks/pending.md` |
+| `BorisResolver` trusts `_meta` unsigned when enabled | anyone who reaches the wallet directly can claim a caller | keep it off unless the wallet is reachable only through the Boris gateway |
+| A child or teen can create unlimited open requests at any price (reviewer remark) | a parent's queue can be flooded | not fixed |
+| `GET /api/llm` readable by every member; `/api/idealo/reconnect` needs no sign-in | information and a side effect (writes `.data/idealo-oauth.json`) | acceptable on the 127.0.0.1 bind; not fixed |
+| `src/cli.js` (`npm start`) still bypasses the wallet | float budget, no rules | rewire or remove (owner's go) |
+| Auto-merge job is skipped when a push and the label arrive together | PR stays open | re-apply the label; fix: trigger on the label event without cancelling it |
+| OpenAI key pasted in a chat | key may leak | revoke after the event; the key is only in the git-ignored `.env` |
+| Real model differs from the fake one | a demo question may loop or lose the product reference | run the two demo questions once with the real model before the demo; the story uses the deterministic assistant |
 | Git from the Claude desktop sandbox | lock files left in `.git` | run git only in your own terminal or Claude Code |
 
 ## Rules that always apply
