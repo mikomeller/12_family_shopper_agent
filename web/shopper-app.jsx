@@ -302,6 +302,42 @@ function ChatMessage({ message, onMockPurchase, budget }) {
   );
 }
 
+function parseOffers(reply) {
+  const rows = [];
+  let header = null;
+  for (const raw of String(reply).split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!(line.startsWith("|") && line.endsWith("|"))) continue;
+    const cells = line.slice(1, -1).split("|").map((c) => c.trim());
+    if (cells.every((c) => /^:?-{3,}:?$/.test(c))) continue;
+    if (!header) { header = cells; continue; }
+    const product = getProductFromRow(cells);
+    if (!product) continue;
+    const si = header.findIndex((c) => /shop|store|seller/i.test(c));
+    rows.push({ ...product, shopName: si >= 0 ? (cells[si] || "").replace(/\*\*/g, "") : "" });
+  }
+  return rows.reduce((best, r) => (!best || r.priceEur < best.priceEur ? r : best), null);
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const firstSentence = (t) => { const s = String(t).replace(/\|.*$/gm, "").replace(/\*\*/g, "").trim(); const m = s.match(/^[^.!?\n]*[.!?]/); return (m ? m[0] : s.split("\n")[0]).trim(); };
+
+function Decision({ steps, finished, running, onStop, onAgain }) {
+  const icon = { running: <span className="trail-spin" aria-hidden="true" />, ok: "✓", bad: "✕", wait: "⏳" };
+  return <section className="panel decision-trail" aria-label="Decision trail">
+    <h2>Decision trail</h2>
+    <div aria-live="polite">
+      <ol className="trail">{steps.map((s) => <li key={s.id} className={`trail-step trail-${s.state}`}>
+        <span className="trail-dot">{icon[s.state]}</span>
+        <div className="trail-body"><strong>{s.title}</strong>{s.text && <span>{s.text}</span>}{(s.subs || []).map((x, i) => <span key={i} className="trail-sub">{x}</span>)}{s.bold && <strong className="trail-bold">{s.bold}</strong>}</div>
+      </li>)}</ol>
+      {finished && <div className="trail-summary"><strong>{finished.ok ? "Story finished: 1 order approved by a parent, 1 purchase refused" : "Story stopped."}</strong>
+        <small>TrustBoris is not connected in this demo: the gateway steps are simulated; the limits are enforced for real by the Family Wallet.</small></div>}
+    </div>
+    {running ? <button type="button" className="secondary-button" onClick={onStop}>Stop</button> : finished && <button type="button" className="mock-buy-button" onClick={onAgain}>Play again</button>}
+    {finished && <small className="trail-note">Playing again uses the same wallet: budgets carry over.</small>}
+  </section>;
+}
+
 const ACCOUNTS = ["parent", "teen", "child"];
 const cap = (id) => id.charAt(0).toUpperCase() + id.slice(1);
 
@@ -343,6 +379,95 @@ export default function ShopperApp() {
   const lastState = useRef(null);
   useEffect(() => { refreshState(); }, [account]);
   useEffect(() => { const q = new URLSearchParams(window.location.search).get("q"); if (q) sendMessage(q); }, []);
+  const [story, setStory] = useState({ running: false, steps: [], finished: null });
+  const storyAbort = useRef(false);
+  useEffect(() => { if (new URLSearchParams(window.location.search).get("story") === "1") setTimeout(() => playStory(), 600); }, []);
+  const stepSet = (id, patch, title) => setStory((st) => {
+    const exists = st.steps.some((s) => s.id === id);
+    const steps = exists ? st.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)) : [...st.steps, { id, title, state: "running", ...patch }];
+    return { ...st, steps };
+  });
+  async function playStory() {
+    if (story.running || busy) return;
+    storyAbort.current = false;
+    setStory({ running: true, steps: [], finished: null });
+    const T = { s1: "1 · Child asks", s2: "2 · idealo price comparison", s3: "3 · Child asks to buy", s4: "4 · Trust layer decides", s5: "5 · Parent decides", s6: "6 · Child asks", s7: "7 · idealo price comparison", s8: "8 · Child tries to buy anyway", s9: "9 · Trust layer decides" };
+    let current = null;
+    const begin = (id, text) => { current = id; stepSet(id, { state: "running", text }, T[id]); };
+    const pause = async () => { await sleep(1500); if (storyAbort.current) throw new Error("__stopped__"); };
+    const as = async (id) => { accountRef.current = id; try { localStorage.setItem("familyMember", id); } catch { /* ignore */ } setAccount(id); setError(""); await sleep(300); };
+    const post = async (url, body) => {
+      const response = await api(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const result = await response.json().catch(() => ({}));
+      return { ok: response.ok, status: response.status, result };
+    };
+    const conv = [];
+    const ask = async (text) => {
+      conv.push({ role: "user", content: text });
+      setMessages([...conv]);
+      setBusy(true);
+      try {
+        const r = await post("/api/chat", { messages: conv, scripted: true });
+        if (!r.ok) throw new Error(r.result.error || "The shopper could not answer.");
+        conv.push({ role: "assistant", content: r.result.reply });
+        setMessages([...conv]);
+        return r.result.reply;
+      } finally { setBusy(false); }
+    };
+    const stateNow = async () => { await refreshState(); return lastState.current; };
+    const childLeft = () => lastState.current?.members?.find((m) => String(m.name).toLowerCase() === "child")?.remainingEur;
+    try {
+      setMessages([]);
+      await as("child"); await refreshState();
+      // Scene 1
+      begin("s1", 'Child: "I\'d like Der Hobbit."'); await ask("Der Hobbit"); stepSet("s1", { state: "ok" }); await pause();
+      begin("s2", "Comparing offers on idealo…");
+      const reply1 = conv[conv.length - 1].content; const best = parseOffers(reply1);
+      stepSet("s2", { state: "ok", text: `Compared offers on idealo — best offer highlighted${best ? `: ${best.shopName ? best.shopName + ", " : ""}${money(best.priceEur)}` : ""}` }); await pause();
+      begin("s3", "Sending the purchase request…");
+      const body = { productRef: "hobbit-pb" }; if (best?.productUrl) body.productUrl = best.productUrl;
+      const buy = await post("/api/family/mock-purchases", body);
+      if (!buy.ok) throw new Error(buy.result.error || `Purchase failed (${buy.status})`);
+      stepSet("s3", { state: "ok", text: "Request sent for Der Hobbit." }); await refreshState(); await pause();
+      begin("s4", "");
+      stepSet("s4", { subs: ["Identity: Child (demo sign-in — TrustBoris Agent Gateway in production)"] }); await pause();
+      stepSet("s4", { subs: ["Identity: Child (demo sign-in — TrustBoris Agent Gateway in production)", "Tool gating: a child may only ask — place_order is not available"] }); await pause();
+      stepSet("s4", { state: "wait", text: "Waiting for a parent", subs: ["Identity: Child (demo sign-in — TrustBoris Agent Gateway in production)", "Tool gating: a child may only ask — place_order is not available", `Family Wallet: ${buy.result.message || "Request recorded."}`] }); await pause();
+      begin("s5", "Switching to Parent…");
+      await as("parent");
+      const st = await stateNow();
+      const req = (st?.pendingApprovals || [])[0];
+      if (!req?.requestId) throw new Error("No pending approval found for the parent.");
+      const ap = await post("/api/family/approve", { requestId: req.requestId });
+      if (!ap.ok) throw new Error(ap.result.error || `Approval failed (${ap.status})`);
+      await refreshState();
+      stepSet("s4", { state: "ok", text: "Passed to a parent" });
+      stepSet("s5", { state: "ok", text: `${ap.result.message || "Approved."} Ordered — counts against the child's limit and the family limit` }); await pause();
+      // Scene 2
+      await as("child"); await refreshState(); await pause();
+      begin("s6", 'Child: "I want the headphones."'); await ask("headphones"); stepSet("s6", { state: "ok" }); await pause();
+      begin("s7", "Comparing offers on idealo…");
+      stepSet("s7", { state: "ok", text: firstSentence(conv[conv.length - 1].content) }); await pause();
+      begin("s8", "Trying to buy anyway…");
+      const bad = await post("/api/family/mock-purchases", { productRef: "headphones-x1" });
+      if (bad.ok) throw new Error("Unexpected: the headphones purchase was not refused.");
+      if (bad.status !== 409 && bad.status !== 400) throw new Error(bad.result.error || `Unexpected status ${bad.status}`);
+      const errText = bad.result.error || bad.result.message || "Refused.";
+      stepSet("s8", { state: "bad", text: `Refused — ${errText}` }); await refreshState(); await pause();
+      begin("s9", "");
+      const verdict = bad.result.verdict || bad.result.reason;
+      const subs = [`Family Wallet: only ${money(childLeft())} left this month`];
+      if (verdict) subs.push(`Discount check: ${verdict}`);
+      stepSet("s9", { state: "bad", text: "", subs, bold: "Every refusal says why and how much is left." });
+      setStory((s) => ({ ...s, running: false, finished: { ok: true } }));
+    } catch (err) {
+      const stopped = err.message === "__stopped__";
+      if (current && !stopped) stepSet(current, { state: "bad", text: err.message });
+      if (!stopped) setError(err.message);
+      setBusy(false);
+      setStory((s) => ({ ...s, running: false, finished: { ok: false } }));
+    }
+  }
   const sampleMember = members[0];
   const suggestions = ["Der Hobbit", "headphones", "coffee machine", "school backpack"];
 
@@ -523,13 +648,14 @@ export default function ShopperApp() {
   const rule = account === "teen" && teenLimit != null ? `Orders alone up to ${money(Number(teenLimit))} / month; above that a parent decides.` : info.rule;
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${story.running ? "story-running" : ""}`}>
       <header className="topbar">
         <div className="brand"><AppMark /><span>Family Shopper</span></div>
         <div className="role-switch" role="radiogroup" aria-label="Signed in as">
           {ACCOUNTS.map((id) => <button key={id} type="button" role="radio" aria-checked={account === id} className={`role-btn ${account === id ? "active" : ""}`} onClick={() => switchAccount(id)}><span className="role-avatar" style={{ background: ROLE_INFO[id].color }}>{cap(id).slice(0, 1)}</span>{cap(id)}{id === "parent" && pendingApprovals.length > 0 && <span className="role-badge">{pendingApprovals.length} waiting</span>}</button>)}
         </div>
         <div className="top-actions">
+          <button className="ghost-button" type="button" onClick={playStory} disabled={story.running || busy}>▶ Play the story</button>
           <button className="ghost-button" onClick={openLlmDialog} disabled={!isParent} title={isParent ? "" : "Only a parent can change this"}>Model provider</button>
           {idealoConnected ? <span className="live-pill"><i /> idealo tools ready</span> : <button className="ghost-button" onClick={() => connectIdealo(false)} disabled={connecting}>{connecting ? "Checking…" : idealoCredentialsSaved ? "Check idealo access" : "Connect idealo"}</button>}
           <button className="ghost-button" type="button" onClick={() => connectIdealo(true)} disabled={connecting}>Reconnect idealo</button>
@@ -567,12 +693,13 @@ export default function ShopperApp() {
           {authorizationUrl && !idealoConnected && <div className="connect-note"><div><strong>Finish connecting idealo</strong><span>Sign in in idealo’s secure window, then return here.</span></div><a href={authorizationUrl} target="_blank" rel="noreferrer">Continue to idealo <Icon name="arrow" size={15} /></a></div>}
           <form className="composer" onSubmit={(event) => { event.preventDefault(); sendMessage(); }}>
             <label htmlFor="chat-input" className="composer-label">Message to the shopping agent</label>
-            <textarea id="chat-input" ref={inputRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } }} placeholder="e.g. Der Hobbit, headphones…" rows="2" readOnly={busy} />
-            <div className="composer-bottom"><span>Prices can change. Orders are recorded in the family wallet. No payment is made.</span><button className="send-button" type="submit" disabled={!draft.trim() || busy}>{busy ? "Sending…" : "Send"} <Icon name="arrow" size={17} /></button></div>
+            <textarea id="chat-input" ref={inputRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } }} placeholder="e.g. Der Hobbit, headphones…" rows="2" readOnly={busy || story.running} />
+            <div className="composer-bottom"><span>Prices can change. Orders are recorded in the family wallet. No payment is made.</span><button className="send-button" type="submit" disabled={!draft.trim() || busy || story.running}>{busy ? "Sending…" : "Send"} <Icon name="arrow" size={17} /></button></div>
           </form>
         </section>
 
         <aside className="insights-column">
+          {(story.running || story.steps.length > 0) && <Decision steps={story.steps} finished={story.finished} running={story.running} onStop={() => { storyAbort.current = true; }} onAgain={playStory} />}
           <details className="panel" open={mineOpen} onToggle={(e) => setMineOpen(e.currentTarget.open)}>
             <summary><h2>Budgets</h2></summary>
             {family && <Budget big label="Family budget this month" remaining={family.remainingEur} spent={family.spentEur} limit={family.capEur} arcs={[

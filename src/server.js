@@ -379,7 +379,8 @@ app.post("/api/chat", async (request, response) => {
   if (!Array.isArray(messages) || !messages.length || messages.length > 24 || messages.some((message) => !["user", "assistant"].includes(message.role) || typeof message.content !== "string")) {
     return response.status(400).json({ error: "Send a short chat as user and assistant messages." });
   }
-  if (offlineMode()) {
+  // `scripted: true` (used by the guided story in the UI) asks for the deterministic assistant on the mock catalogue.
+  if (offlineMode() || request.body?.scripted === true) {
     try { return response.json({ ...(await offlineReply(messages, request.member, callWallet)), memberName: displayName(request.member) }); }
     catch (error) { return response.status(502).json({ error: error.message || "The offline demo could not start." }); }
   }

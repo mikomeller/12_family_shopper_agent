@@ -201,3 +201,20 @@ h1,h2{margin:0;letter-spacing:-.02em}h2{font-size:17px;font-weight:700}
   .chat-panel.has-messages{height:auto;max-height:70vh}.offer-card{grid-template-columns:1fr}.offer-action{flex-direction:row;align-items:center;justify-content:space-between}
   .welcome-title{font-size:28px}
 }
+
+/* guided story trail (#63), Rings style */
+.story-running .mock-buy-button,.story-running .suggestion{pointer-events:none;opacity:.5}
+.trail{list-style:none;margin:8px 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.trail-step{display:flex;gap:10px;align-items:flex-start}
+.trail-dot{flex:0 0 24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--line);color:var(--muted)}
+.trail-ok .trail-dot{background:var(--child);color:#fff}
+.trail-bad .trail-dot{background:#ff3b30;color:#fff}
+.trail-wait .trail-dot{background:var(--fam);color:#fff}
+.trail-body{display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--ink)}
+.trail-body span{color:var(--muted)}
+.trail-sub{padding-left:10px;border-left:2px solid var(--line)}
+.trail-bold{color:var(--bad-ink)}
+.trail-spin{width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:trailspin .8s linear infinite}
+@keyframes trailspin{to{transform:rotate(360deg)}}
+.trail-summary{display:flex;flex-direction:column;gap:4px;padding:12px 14px;background:var(--ok-bg);color:var(--ok-ink);border-radius:14px;margin:8px 0}
+.trail-summary small,.trail-note{color:var(--muted);font-size:12px}
