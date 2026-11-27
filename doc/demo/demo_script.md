@@ -1,11 +1,22 @@
 <!--
 Author:    mikomeller
-Version:   0.1.0
+Version:   0.1.1
 Filename:  demo_script.md
 Pathname:  doc/demo/demo_script.md
 Purpose:   Presenter script (3 min): four scenes + discount honesty, fallback, "Without Boris" table, pitch mapped to the four judging criteria
 -->
 # Demo script (3 minutes)
+
+## Live demo in the browser (variant)
+Start: `docker compose up -d --build app`, open `http://localhost:6274`. Reset to fresh state first (see `doc/runbooks/docker_app.md`).
+Without an OpenAI key the chat runs in **offline mode** (idealo mock, no LLM; status shows `mode: "offline-mock"`). With a key in `.env` it uses the LLM and the real idealo MCP.
+**Not tried yet:** nobody has clicked this through in a browser; only the HTTP smoke test (`node scripts/ui_wallet_smoke.mjs`, 17 of 17) ran. The family accounts are a demo sign-in, not authentication.
+1. Sign in as **Teen**. Ask: `Der Hobbit`. Buy the cheapest offer. Expect: the order goes through and the budget drops.
+2. Still Teen. Ask for headphones (SoundMax X1) and press Buy. Expect: blocked as INFLATED (the "was" price fails `check_discount`).
+3. Sign in as **Child**. Buy the Hobbit. Expect: "waiting for parent approval", no spend.
+4. Sign in as **Parent**. Open requests: Reject one, Approve another. Expect: a rejected request never becomes an order; an approved one counts against the child's cap and the family cap.
+Fallback: `uv run python scripts/demo.py` (below).
+
 
 Family: parent (no personal cap), teen (50.00 EUR/month, orders alone), child (20.00 EUR/month, needs approval). Family cap 400.00 EUR.
 Fresh state before the demo: `uv run python scripts/seed_wallet.py --print-tokens` (needs `WALLET_TOKEN_SECRET`).
@@ -36,6 +47,7 @@ Say it plainly: "This is the same wallet, driven by a script instead of the agen
 - Signed in: **teen**.
 - Prompt: `Is the 449 EUR crossed-out price on the SoundMax X1 headphones real?` then the same for the BrewPro 3 coffee machine (was 99.99 EUR).
 - Audience sees: headphones INFLATED (claimed 33.40 % off, real 3.54 % vs the 30-day low); coffee machine GENUINE (20 % off).
+- Owner decision 2026-11-27: INFLATED now BLOCKS the order (before: warn). Enforced in the web UI purchase path and in the agent prompt (rule 8); the wallet itself cannot verify a discount. Note: `scripts/demo.py` scene 4 is unverified against this change.
 - Fallback: scene 4.
 
 ## Scene 5 - Identity and injection (about 20 s, optional)

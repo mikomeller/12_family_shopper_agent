@@ -1,7 +1,7 @@
 {
   "_header": {
     "Author": "mikomeller",
-    "Version": "0.1.4",
+    "Version": "0.1.5",
     "Filename": "backlog.json",
     "Pathname": "scripts/backlog.json",
     "Purpose": "Backlog for 12_family_shopper_agent: labels, milestones, Project fields, epics and stories (a story names its epic in 'parent') read by setup_github.py"
@@ -956,6 +956,23 @@
         "Judging criterion": "2 Trust you can see"
       },
       "body": "## Why\nThe branch `rodrigo-agent` and PR #33 contain no Boris connection details, no MCP credentials and no OpenAI key (checked 2026-11-27: `.env.example` has an empty key; idealo OAuth tokens live in the git-ignored `.data/idealo-oauth.json` on the machine that signed in). Secrets must not be pushed to this public repo.\n\n## Tasks (human)\n- [ ] `OPENAI_API_KEY` in `.env` in the project folder\n- [ ] idealo: copy `.data/idealo-oauth.json` from the machine that signed in, or click \"Connect idealo\" in the UI\n- [ ] Boris: agent URL / access point and how the agent reaches the two MCP servers → `doc/research/boris_identity_spike.md`\n- [ ] `boris login --device` in the container\n\n## Acceptance criteria\n- [ ] Chat works with the real model and live idealo\n- [ ] The Family Buyer agent in Boris calls the wallet"
+    },
+    {
+      "title": "Bring your own model provider: OpenAI/Codex key, Nebius Token Factory, any OpenAI-compatible endpoint",
+      "labels": [
+        "type:task",
+        "area:agent"
+      ],
+      "milestone": "M1 Core build",
+      "parent": "Epic E2: Agent and purchase flow",
+      "fields": {
+        "Stage": "In progress",
+        "Priority": "P1",
+        "Size": "M",
+        "Boris feature": "Backup model",
+        "Judging criterion": "4 Only what matters"
+      },
+      "body": "## Why\nOwner request 2026-11-27: every team member should be able to use their own AI provider or API key instead of one shared OpenAI key.\n\n## Tasks\n- [ ] Provider registry: OpenAI / Codex API key, Nebius Token Factory, custom OpenAI-compatible endpoint (`src/llm-provider.js`)\n- [ ] Chat Completions tool loop for OpenAI-compatible providers\n- [ ] Settings dialog in the UI (parent only); key held in server memory only, never returned, never logged\n- [ ] Test with a local fake OpenAI-compatible server (`scripts/fake_llm.mjs`)\n- [ ] Tried once with a real Nebius key and a real OpenAI key by a person\n\n## Acceptance criteria\n- [ ] The key never appears in a response, a log or the repo\n- [ ] Identity rules, wallet caps and the INFLATED block hold with any provider\n\nNot in scope: signing in with a ChatGPT/Codex subscription account (OAuth); only API keys."
     }
   ]
 }

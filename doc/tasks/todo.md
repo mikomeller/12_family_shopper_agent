@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.6
+Version:   0.1.7
 Filename:  todo.md
 Pathname:  doc/tasks/todo.md
 Purpose:   Plan and progress tracker for 12_family_shopper_agent (setup first, then the build backlog lives in the GitHub Project)
@@ -93,9 +93,25 @@ Diagram: [`doc/diagrams/orchestration.mmd`](../diagrams/orchestration.mmd)
 - [ ] **Orch:** reviewer remarks (seed guard, `personal_cap: null` for teen/child, `deep_link` scheme, `list_orders("2026-13")`, int() coercion in mock)
 - [ ] **Orch:** ADR 0001, Docker Compose (if time)
 
+## Task 5 — Round two (2026-11-27 evening)
+- [x] Wallet tool `reject_request` (#51); 8 tools; migration of old databases in `init_db`
+- [x] Owner decisions: a parent can reject; INFLATED blocks (#52), enforced in the web UI purchase path and prompt rule 8
+- [x] Web UI family accounts (demo sign-in), offline chat mode (#53); `node scripts/ui_wallet_smoke.mjs` 17 of 17, also via Docker
+- [x] Full application in Docker, `docker compose up -d --build app` on `http://localhost:6274` (#54); runbook `doc/runbooks/docker_app.md`
+- [x] Eval harness, scenarios S-01…S-13, L3/L4 at the tool layer (#37, #38, #39); `evals/results/2026-11-27_l3_l4.md`
+- [x] Board: stories #51-#55 created from `backlog.json` v0.1.4 (49 issues) and linked; ticket #25 assessed and linked under Epic #45
+- [x] Checked: `rodrigo-agent` / PR #33 contain no Boris details, MCP credentials or OpenAI key
+- [x] Merged to `main` via PR #56 (merge commit fe056fb); gates: 144 passed, 13 skipped, ruff clean, `DEMO OK: 5/5 scenes`
+- [x] Docs: prompt, orchestrator, README, handover, pending, lessons, demo script updated
+- [ ] Independent review of PR #56 (pending) and fixes
+- [ ] Owner: OpenAI key, idealo sign-in, Boris connection details (#55); `boris login`; agent in Agent Builder
+- [ ] Spike #4; LLM driver in `evals/drivers.py`; L3 for real; L4 against Boris
+- [ ] Browser click-through of the UI (nobody has done it); chat with a real OpenAI key; live idealo OAuth
+- [ ] `src/cli.js` rewired to the wallet or removed
+
 ## Open decisions
 - Does a parent-approved child order still count against the child's personal cap? Decided by the owner 2026-11-27: yes (A1).
-- Open: source of `sale_days` for the discount check; may a parent reject a request; should INFLATED block an order (proposal: warn only).
+- Open: source of `sale_days` for the discount check. Decided 2026-11-27: a parent can reject a request; INFLATED blocks the order.
 - Does Boris forward the verified caller identity to MCP tools? → spike issue (P0, M0).
 
 ## Results
@@ -103,3 +119,4 @@ Diagram: [`doc/diagrams/orchestration.mmd`](../diagrams/orchestration.mmd)
 - 2026-11-27: collaborator-branch script delivered and verified with a stubbed gh; live run pending.
 - 2026-11-27: Kanban hierarchy, orchestrator + subagents, eval plan, handover and pending list delivered; verified offline and against a stubbed gh. Live GitHub run and first Claude Code session pending. No product code yet.
 - 2026-11-27: hackathon build: wallet, idealo mock, discount check, demo and CI with automerge on `main`; `uv run pytest -q` 100 passed, ruff clean, `DEMO OK: 5/5 scenes`. Web UI server wired to the wallet (smoke 7 of 7; chat untested). Boris agent, spike #4, L3/L4 evals open.
+- 2026-11-27 evening (Task 5): wallet 8 tools, UI family accounts + offline mode (smoke 17 of 17), full app in Docker, eval harness S-01…S-13 (tool layer, scripted + adversarial driver: task 3/3, safety 3/3; L4 simulated). `uv run pytest -q` 144 passed, 13 skipped; ruff clean; `DEMO OK: 5/5 scenes`. Review of PR #56 pending. Not run: LLM agent evals, Boris, chat with an OpenAI key, browser click-through.

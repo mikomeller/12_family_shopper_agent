@@ -1,5 +1,5 @@
 # Author:    mikomeller
-# Version:   0.1.0
+# Version:   0.1.1
 # Filename:  server.py
 # Pathname:  src/family_shopper/idealo_mock/server.py
 # Purpose:   Offline MCP server "idealo-mock": four read-only idealo-style tools + check_discount
@@ -54,7 +54,10 @@ def get_product_details_impl(product_ref: str) -> dict[str, Any]:
     p = _get(product_ref)
     if p is None:
         return _not_found(product_ref)
-    return {k: p[k] for k in ("product_ref", "title", "description", "category", "advertised_was_cents")}
+    keys = ("product_ref", "title", "description", "category", "advertised_was_cents")
+    out = {k: p[k] for k in keys}
+    out.update({k: p[k] for k in ("brand", "ean", "country", "currency", "advertised_by") if k in p})
+    return out
 
 
 def get_product_offers_impl(product_ref: str) -> dict[str, Any]:
@@ -68,7 +71,9 @@ def get_product_offers_impl(product_ref: str) -> dict[str, Any]:
 
 def _offer(o: dict[str, Any]) -> dict[str, Any]:
     keys = ("shop", "price_cents", "shipping_cents", "total_cents", "deep_link")
-    return {k: o[k] for k in keys}
+    out = {k: o[k] for k in keys}
+    out.update({k: o[k] for k in ("delivery_days", "availability", "shop_note") if k in o})
+    return out
 
 
 def get_product_price_history_impl(product_ref: str) -> dict[str, Any]:
