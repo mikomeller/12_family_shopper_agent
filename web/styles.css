@@ -146,3 +146,18 @@ h1,h2{margin:0}h2{font-size:17px}
 .toast-area{position:sticky;top:0;z-index:10;padding:0 24px}.toast{margin-top:8px;padding:12px 14px;border-radius:8px;border:1px solid var(--ok-line);background:var(--ok-bg);color:var(--ok-ink);font-weight:700}
 .insights-column{display:flex;flex-direction:column}.panel-first{order:-1}
 .send-button:disabled{opacity:.5;cursor:not-allowed}
+.story-running .mock-buy-button,.story-running .suggestion{pointer-events:none;opacity:.5}
+.trail{list-style:none;margin:8px 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.trail-step{display:flex;gap:10px;align-items:flex-start}
+.trail-dot{flex:0 0 24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;border:1px solid var(--line);background:var(--surface);color:var(--muted)}
+.trail-ok .trail-dot{background:var(--ok-bg);color:var(--ok-ink);border-color:var(--ok-line)}
+.trail-bad .trail-dot{background:var(--bad-bg);color:var(--bad-ink);border-color:var(--bad-line)}
+.trail-wait .trail-dot{background:var(--warn-bg);color:var(--warn-ink);border-color:var(--warn-line)}
+.trail-body{display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--ink)}
+.trail-body span{color:var(--muted)}
+.trail-sub{padding-left:8px;border-left:2px solid var(--line)}
+.trail-bold{color:var(--bad-ink)}
+.trail-spin{width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:trailspin .8s linear infinite}
+@keyframes trailspin{to{transform:rotate(360deg)}}
+.trail-summary{display:flex;flex-direction:column;gap:4px;padding:10px;border:1px solid var(--ok-line);background:var(--ok-bg);color:var(--ok-ink);border-radius:8px;margin:8px 0}
+.trail-summary small,.trail-note{color:var(--muted);font-size:12px}
