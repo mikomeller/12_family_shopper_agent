@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.5
+Version:   0.1.6
 Filename:  todo.md
 Pathname:  doc/tasks/todo.md
 Purpose:   Plan and progress tracker for 12_family_shopper_agent (setup first, then the build backlog lives in the GitHub Project)
@@ -69,11 +69,37 @@ Diagram: [`doc/diagrams/orchestration.mmd`](../diagrams/orchestration.mmd)
 - [ ] **You:** `mkdir -p .claude/agents && cp doc/agents/*.md .claude/agents/`, then `claude --agent orchestrator` — confirm it starts and lists the five subagents
 - [ ] **You:** decide A1 and A2 in `doc/evals/eval_plan.md`
 
+## Task 4 — Hackathon build (2026-11-27)
+
+- [x] Wallet design `doc/design/wallet_mcp.md` + `doc/diagrams/wallet_contract.mmd` (#6) — on `main`
+- [x] Wallet server `src/family_shopper/wallet/`, 7 tools (#7, #34) — on `main`
+- [x] Seed script `scripts/seed_wallet.py` (#35) — on `main`; guard against wiping the db still open (Orch)
+- [x] Cap and contract tests L1-01…L1-13, L2-01…L2-09 (#8) — 72 tests, `evals/results/2026-11-27_l1_l2.md`
+- [x] idealo mock with fixtures incl. one prompt injection (#36) — real idealo response shapes unverified
+- [x] Offline demo `scripts/demo.py` + `doc/demo/demo_script.md` (#17, #18, #19) — ends `DEMO OK: 5/5 scenes`
+- [x] Boris system prompt and runbook (#9, #11, #12) — every Boris dashboard step unverified
+- [x] Boris CLI 0.1.35 in `docker/boris/Dockerfile` + `doc/runbooks/boris_docker.md` — `boris doctor`: "Not signed in"
+- [x] Discount check (ticket #25, Epic E7): `doc/design/discount_check.md`, `src/family_shopper/discount_check.py`, tool `check_discount`, DC-01…DC-19 pass
+- [x] CI `.github/workflows/ci.yml` with automerge — verified live on PR #44 and PR #49
+- [x] Board: 7 epics, 10 stories, 30 links via `scripts/setup_github.py`; later E7 (#45) and #46, #47, #48; `backlog.json` v0.1.3 (44 issues)
+- [x] Independent review: approve, no blocking findings
+- [x] Owner decisions A1 and A2 confirmed
+- [x] **Orch:** web UI (collaborator PR #33) wired to the wallet: purchases, budgets and approvals go through the Family Wallet (`src/wallet-client.js`); `node scripts/ui_wallet_smoke.mjs` passes 7 of 7
+- [ ] **You / Orch:** web UI open points: chat endpoint untested (no OpenAI key), UI not viewed in a browser, `src/cli.js` (`npm start`) still uses its own float budget file and bypasses the wallet
+- [ ] **You:** Boris login in the container (`--device`) and create the agent in Agent Builder per `doc/runbooks/boris_agent_setup.md`
+- [ ] **You:** identity spike #4
+- [ ] **Orch:** eval harness and L3 incl. S-11
+- [ ] **You:** idealo live smoke test #3
+- [ ] **Orch:** reviewer remarks (seed guard, `personal_cap: null` for teen/child, `deep_link` scheme, `list_orders("2026-13")`, int() coercion in mock)
+- [ ] **Orch:** ADR 0001, Docker Compose (if time)
+
 ## Open decisions
-- Does a parent-approved child order still count against the child's personal cap? Proposal: yes.
+- Does a parent-approved child order still count against the child's personal cap? Decided by the owner 2026-11-27: yes (A1).
+- Open: source of `sale_days` for the discount check; may a parent reject a request; should INFLATED block an order (proposal: warn only).
 - Does Boris forward the verified caller identity to MCP tools? → spike issue (P0, M0).
 
 ## Results
 - 2026-11-27: scaffold and script delivered and verified offline; live GitHub run pending (needs mikomeller's gh login).
 - 2026-11-27: collaborator-branch script delivered and verified with a stubbed gh; live run pending.
 - 2026-11-27: Kanban hierarchy, orchestrator + subagents, eval plan, handover and pending list delivered; verified offline and against a stubbed gh. Live GitHub run and first Claude Code session pending. No product code yet.
+- 2026-11-27: hackathon build: wallet, idealo mock, discount check, demo and CI with automerge on `main`; `uv run pytest -q` 100 passed, ruff clean, `DEMO OK: 5/5 scenes`. Web UI server wired to the wallet (smoke 7 of 7; chat untested). Boris agent, spike #4, L3/L4 evals open.

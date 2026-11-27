@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.0
+Version:   0.1.1
 Filename:  prompt.md
 Pathname:  prompt.md
 Purpose:   Start prompt for Claude Code in 12_family_shopper_agent: fetch the repo, read the project .md files,
@@ -24,6 +24,9 @@ Use it in one of two ways, from the repo root:
    - `doc/evals/eval_plan.md` — gates, eval cases, pass marks
    - `doc/research/affinidi_boris_idealo.md` — challenge, Boris features, idealo MCP limits
    - `doc/diagrams/*.mmd` — architecture, purchase sequence, orchestration
+   - `doc/design/wallet_mcp.md`, `doc/design/discount_check.md` — wallet tool contract, discount check design
+   - `doc/demo/demo_script.md` — the five-scene demo
+   - `doc/runbooks/*.md` — human-only steps (Boris agent setup, Boris in Docker)
    - `doc/agents/*.md` — the subagents you delegate to (architect, reviewer, wallet-dev, test-eval, docs-demo)
 4. Read the board: `python3 scripts/board.py list --stage Ready`. If that fails, say so and work from `doc/tasks/pending.md`.
 5. Tell the human in five lines: state, the next story you propose, what you need from them. Then wait for their go.
@@ -43,13 +46,16 @@ Family members ask an agent to find and buy products. It searches the read-only 
 own Family Wallet MCP (Python + SQLite), which enforces personal and family monthly caps and the child approval
 flow. Orders are simulated (recorded + shop deep link). TrustBoris adds caller identity, per-role tool gating,
 screening, throttling, caching and a backup model. Euro caps live only in the wallet; the agent never does the arithmetic.
+Before ordering a product that is advertised as reduced, the agent calls `check_discount` (Epic E7, from ticket #25) and reports the verdict.
 
 ## Today (2026-11-27, hackathon day)
 - Submissions close at 19:45 CET; live demos from 20:00. Building is the first priority.
-- Order of work: wallet contract diagram → wallet server + cap tests (L1, L2) → idealo mock → Boris agent and trust features → demo script.
-  Drop CI, ADR and L4 if time runs short; never drop the cap tests.
+- Done and on `main`: wallet design, wallet server (7 tools) and 72 cap/contract tests, idealo mock with fixtures, discount check (`check_discount`, DC-01…DC-19), offline demo (`scripts/demo.py`), system prompt and runbooks for Boris, CI with automerge. Full suite: 100 passed, ruff clean. Details in `doc/handover/HANDOVER.md`.
+- Next: (1) web UI (from collaborator PR #33): purchases, budgets and approvals go through the Family Wallet (`src/wallet-client.js`); `node scripts/ui_wallet_smoke.mjs` passes 7 of 7; open: chat endpoint untested (no OpenAI key), UI not viewed in a browser, `src/cli.js` (`npm start`) still uses its own float budget file and bypasses the wallet; (2) owner: Boris login and agent in Agent Builder following `doc/runbooks/boris_agent_setup.md`; (3) spike #4 (does Boris forward the caller identity); (4) eval harness + L3 with scenario S-11.
+  Drop ADR and L4 if time runs short; never drop the cap tests.
 - Decided by the owner: a parent-approved child order counts against the child's personal cap and the family cap.
 - Decided by the owner: safety scenarios must pass 3 of 3 runs.
+- Decided by the owner: the orchestrator may push and open pull requests itself, label them `automerge`, squash only; development happens only in `~/Documents/M1_20230921/src/genAI/12_family_shopper_agent`.
 - Checked today: the `mcp` Python package is at 2.x, where `FastMCP` was renamed (`from mcp.server.mcpserver import MCPServer`).
   Confirm against the installed version before writing server code.
 
@@ -107,8 +113,11 @@ A subagent starts with no memory of this session. Every brief contains:
 ```bash
 uv run ruff check .
 uv run pytest -q
+uv run python scripts/demo.py                # must end with: DEMO OK: 5/5 scenes
 python3 scripts/setup_github.py --dry-run    # only when scripts/backlog.json changed
 ```
+CI green in GitHub Actions on the pull request is a gate too.
+Start servers with `PYTHONPATH=src uv run python -m ...` (the editable-install `.pth` file can get the macOS hidden flag; pytest is unaffected).
 Also check by reading the diff:
 - every new or changed file that allows comments has the header (Author, Version, Filename, Pathname, Purpose) and its patch version was raised
 - a diagram in `doc/diagrams/` existed before the code it describes
@@ -121,7 +130,11 @@ quote the result file from `evals/results/` in your report.
 ## Git
 - Never commit to `main`. Work on the branch named after the GitHub login (`gh api user --jq .login`); create it from `main` if missing.
 - Commit only after the gates pass, one story per commit, message `<type>: <story title> (#<issue>)`.
-- Push and open a pull request only when the human says so.
+- You may push your branch and open a pull request to `main` yourself. Label it `automerge`, squash only. CI in GitHub Actions
+  (`uv sync --frozen`, `uv run ruff check .`, `uv run pytest -q`) must be green; the `automerge` job squash-merges a same-repo,
+  non-draft PR once the `test` job passes. Never push to `main` directly. Never force-push.
+- After a squash merge, sync the working branch: `git fetch origin && git merge origin/main`.
+- Develop only in `~/Documents/M1_20230921/src/genAI/12_family_shopper_agent`. Ask for the working folder before cloning anything.
 
 ## Stop and ask the human when
 - a decision is not covered by `HANDOVER.md` and changes an interface, the data model or the budget rules

@@ -1,80 +1,24 @@
 <!--
 Author:    mikomeller
-Version:   0.1.4
+Version:   0.1.5
 Filename:  README.md
 Pathname:  README.md
 Purpose:   Overview, structure and first-time setup of 12_family_shopper_agent
 -->
 # 12_family_shopper_agent
 
-A family shopping agent project originally explored with Affinidi **TrustBoris** for the AI Agents Berlin hackathon (Affinidi challenge).
-This branch adds a runnable local React app that searches and compares products through the official **idealo MCP**.
-Its purchases are simulated only: the app records a mock purchase against a local demo budget and cannot place real orders.
+A family shopping agent built on Affinidi **TrustBoris** for the AI Agents Berlin hackathon (Affinidi challenge).
+It searches and compares products through the official **idealo MCP** and **orders on its own**,
+within each member's and the family's monthly spending caps.
 
-The role model below is part of the longer-term concept; it is not implemented by the local browser demo.
+**Trust dividend:** spending money without a parent approving every order.
 
-| Role | Proposed permissions | Example monthly cap |
+| Role | May do | Monthly cap |
 |---|---|---|
 | Parent | everything, approves requests, sets budgets | none (family cap applies) |
 | Teen | search and order alone | €50 |
 | Child | search; every order becomes an approval request | €20 |
 | Family | all orders together | €400 |
-
-## Run the local browser demo
-
-Requirements: Node.js 20 or newer, plus an OpenAI API key for assistant responses.
-
-From the repository folder, install the dependencies and create local settings and sample family data:
-
-```bash
-npm install
-cp .env.example .env
-cp data/family.example.json data/family.json
-```
-
-Add your OpenAI API key to `OPENAI_API_KEY` in `.env`. Keep `.env` private; it is ignored by Git. Then start both the local server and the React app:
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:6274](http://localhost:6274). Stop the app with **Ctrl+C** in the terminal.
-
-## Connect idealo
-
-1. With the app running, click **Connect idealo**.
-2. Sign in to idealo in the authorization page and approve access.
-3. Return to Family Shopper. It reports **idealo tools ready** after it confirms access to the MCP tools.
-
-The app uses OAuth through idealo MCP. You do not need an idealo API key or a manually copied token. Keep the development app on `http://localhost:6274` during sign-in; the callback address is:
-
-```text
-http://localhost:6274/oauth/callback
-```
-
-The Vite development server forwards the OAuth callback to the local app server on port `3001`. OAuth details are stored in `.data/idealo-oauth.json`, which is ignored by Git. Do not share this file or its tokens.
-
-If you see **Invalid redirect URI**, check that you are using the local address and port above. If idealo returns **403 Forbidden**, sign-in may have succeeded but idealo has denied MCP tool access for the account; contact idealo MCP support to check account access.
-
-## Family budgets and mock purchases
-
-Sample profiles are in `data/family.example.json`. Copy it to `data/family.json` for a local starting point, then edit the names and `spendingLimitEur` values or use the **+** button beside **Budget overview** in the app. Local profiles and purchase history are stored in `data/family.json`, which is ignored by Git.
-
-Product requests use each person's remaining demo budget. For the same product, the assistant compares idealo shops by total price, including shipping when known, and highlights the cheapest listed option. Clicking **Buy (mock)** in an offer table records that offer's listed price in the local ledger and updates the demo budget. It does not open a shop checkout, take payment, or place an order.
-
-The app reads its shopping instructions from `skills/family-shopper/SKILL.md`. The skill guides the assistant; the React app and local server load it and perform the MCP calls.
-
-## Configuration and data
-
-`.env.example` lists the available settings:
-
-| Setting | Purpose | Default |
-| --- | --- | --- |
-| `OPENAI_API_KEY` | Key used by the local server for assistant responses | Required |
-| `OPENAI_MODEL` | OpenAI Responses API model | `gpt-6.2-sol` |
-| `IDEALO_MCP_URL` | idealo MCP endpoint | `https://mcp.idealo.com/mcp` |
-
-Chat requests, shopping instructions, and family budget information are sent to the OpenAI API; product searches are made through idealo MCP. The browser app uses a local server so the OpenAI API key stays out of the browser. This demo runs locally for one user and does not have accounts or access controls for family sharing.
 
 Architecture: [`doc/diagrams/family_buyer_architecture.mmd`](doc/diagrams/family_buyer_architecture.mmd) ·
 Purchase flow: [`doc/diagrams/purchase_decision_sequence.mmd`](doc/diagrams/purchase_decision_sequence.mmd) ·
@@ -83,15 +27,40 @@ Research: [`doc/research/affinidi_boris_idealo.md`](doc/research/affinidi_boris_
 ## Structure
 ```
 .github/ISSUE_TEMPLATE/   Idea, Task, Bug issue forms
+agent/                    family_buyer_system_prompt.md (system prompt of the shopping agent)
 config/                   family_budget.example.yaml (copy to family_budget.yaml)
-doc/research/             research and spike results
-doc/diagrams/             Mermaid diagrams (before code)
-doc/agents/               orchestrator + subagents for Claude Code; copy to .claude/agents/, then: claude --agent orchestrator
-doc/evals/                eval_plan.md (gates, eval levels, scenarios)
-doc/handover/             HANDOVER.md (state, decisions, how to start)
-doc/tasks/                todo.md (plan), pending.md (next steps) and lessons.md
-scripts/                  setup_github.py + backlog.json, board.py (board in the terminal)
+docker/boris/             Dockerfile + README for the Boris gateway
+doc/                      research, diagrams, design (wallet_mcp.md), agents, evals, handover, tasks
+src/family_shopper/wallet/       Family Wallet MCP (stdio): db, identity (HMAC token), service, server
+src/family_shopper/idealo_mock/  offline idealo MCP mock + fixtures
+src/family_shopper/discount_check.py  discount sanity check
+tests/                    pytest: caps (L1), MCP contract (L2), mock, demo, smoke
+scripts/                  demo.py (offline demo), seed_wallet.py, wallet_tokens.py, ui_wallet_smoke.mjs, setup_github.py, board.py
+src/server.js, src/wallet-client.js, src/idealo-oauth.js, src/cli.js   Node web UI backend (see Web UI)
+web/, index.html, vite.config.js, package.json                        React front end
+skills/family-shopper/    shopper skill used by the chat
 ```
+
+## Run the tests and the offline demo
+```bash
+uv sync
+uv run pytest -q
+uv run python scripts/demo.py
+```
+
+## Web UI (by Rodrigo)
+A chat front end for the family shopper. **Search uses the real idealo MCP and needs an OpenAI key.**
+**All budget decisions come from the Family Wallet MCP** (integer cents; teen 50 EUR, child 20 EUR with parent approval, family 400 EUR per month).
+The UI never decides a cap: the Node server starts one wallet process per member with a signed token and relays the wallet's answers.
+```bash
+npm install
+cp .env.example .env     # set OPENAI_API_KEY; optionally WALLET_TOKEN_SECRET and WALLET_DB
+npm run dev              # server on http://127.0.0.1:3001, UI via Vite
+```
+If `WALLET_TOKEN_SECRET` is empty the server generates a random one in memory at start. The wallet db is created on first start
+(`WALLET_DB`, default `data/wallet.sqlite`). Members and limits are changed only in the wallet by a parent; the UI cannot add members.
+`npm start` runs the older CLI, which still uses a local JSON budget and does not go through the wallet.
+Smoke test with the server running: `node scripts/ui_wallet_smoke.mjs`.
 
 ## First-time GitHub setup (on your Mac, from `~/Documents/M1_20230921/src/genAI/12_family_shopper_agent`)
 ```bash

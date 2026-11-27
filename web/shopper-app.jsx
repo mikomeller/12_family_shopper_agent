@@ -96,8 +96,8 @@ function FormattedReply({ content, memberName, onMockPurchase }) {
     if (!product || !memberName || !onMockPurchase) return;
     setPurchaseStates((current) => ({ ...current, [rowIndex]: { status: "pending" } }));
     try {
-      await onMockPurchase({ ...product, memberName });
-      setPurchaseStates((current) => ({ ...current, [rowIndex]: { status: "done" } }));
+      const result = await onMockPurchase({ ...product, memberName });
+      setPurchaseStates((current) => ({ ...current, [rowIndex]: { status: "done", message: result?.purchase?.pendingApproval ? "Waiting for parent approval" : "" } }));
     } catch (error) {
       setPurchaseStates((current) => ({ ...current, [rowIndex]: { status: "error", message: error.message } }));
     }
@@ -113,7 +113,7 @@ function FormattedReply({ content, memberName, onMockPurchase }) {
         const product = getProductFromRow(row);
         const state = purchaseStates[`${index}-${rowIndex}`];
         const isCheapest = rowIndex === cheapestRowIndex;
-        return <tr key={rowIndex} className={isCheapest ? "cheapest-option" : ""}>{header.map((_, cellIndex) => <td key={cellIndex}>{cellIndex === 0 ? <><InlineText text={row[cellIndex] || "—"} />{isCheapest && <span className="cheapest-tag">{cheapestLabel}</span>}</> : <InlineText text={row[cellIndex] || "—"} />}</td>)}{memberName && <td className="reply-action-cell">{product ? <><button className="mock-buy-button" type="button" disabled={state?.status === "pending" || state?.status === "done"} aria-label={`Record a mock purchase of ${product.productName} for ${memberName}`} onClick={() => recordFromRow(row, `${index}-${rowIndex}`)}>{state?.status === "pending" ? "Adding…" : state?.status === "done" ? "Added" : "Buy (mock)"}</button>{state?.status === "error" && <span className="mock-buy-error" role="alert">{state.message}</span>}</> : "—"}</td>}</tr>;
+        return <tr key={rowIndex} className={isCheapest ? "cheapest-option" : ""}>{header.map((_, cellIndex) => <td key={cellIndex}>{cellIndex === 0 ? <><InlineText text={row[cellIndex] || "—"} />{isCheapest && <span className="cheapest-tag">{cheapestLabel}</span>}</> : <InlineText text={row[cellIndex] || "—"} />}</td>)}{memberName && <td className="reply-action-cell">{product ? <><button className="mock-buy-button" type="button" disabled={state?.status === "pending" || state?.status === "done"} aria-label={`Record a mock purchase of ${product.productName} for ${memberName}`} onClick={() => recordFromRow(row, `${index}-${rowIndex}`)}>{state?.status === "pending" ? "Adding…" : state?.status === "done" ? (state.message ? "Requested" : "Added") : "Buy (mock)"}</button>{state?.status === "done" && state.message && <span className="mock-buy-error">{state.message}</span>}{state?.status === "error" && <span className="mock-buy-error" role="alert">{state.message}</span>}</> : "—"}</td>}</tr>;
       })}</tbody></table></div>;
     }
     if (block.type === "list") return <ul key={index}>{block.items.map((item, itemIndex) => <li key={itemIndex}><InlineText text={item} /></li>)}</ul>;
@@ -123,19 +123,20 @@ function FormattedReply({ content, memberName, onMockPurchase }) {
 
 function MemberCard({ member }) {
   const spent = Number(member.spentEur || 0);
-  const limit = Number(member.spendingLimitEur || 0);
+  const hasCap = member.spendingLimitEur != null;
+  const limit = hasCap ? Number(member.spendingLimitEur) : Number(member.familyCapEur || 0);
   const percent = limit ? Math.min(100, (spent / limit) * 100) : 0;
   return (
     <article className="member-card">
       <div className="member-card-top">
         <div className="avatar">{member.name?.slice(0, 1).toUpperCase()}</div>
-        <div className="member-name">{member.name}<span>Family member</span></div>
+        <div className="member-name">{member.name}<span>{member.role}{hasCap ? "" : " · family cap only"}</span></div>
         <span className="card-menu">•••</span>
       </div>
-      <div className="balance-label">DEMO BUDGET REMAINING</div>
-      <div className="balance-amount">{money(limit - spent)}</div>
+      <div className="balance-label">WALLET BUDGET REMAINING</div>
+      <div className="balance-amount">{money(member.remainingEur)}</div>
       <div className="progress-track"><div className="progress-value" style={{ width: `${percent}%` }} /></div>
-      <div className="budget-foot"><span>{money(spent)} used</span><span>of {money(limit)}</span></div>
+      <div className="budget-foot"><span>{money(spent)} used</span><span>{hasCap ? `of ${money(limit)}` : `family ${money(member.familyRemainingEur)} left`}</span></div>
     </article>
   );
 }
@@ -156,6 +157,8 @@ function ChatMessage({ message, onMockPurchase }) {
 export default function ShopperApp() {
   const [members, setMembers] = useState([]);
   const [purchases, setPurchases] = useState([]);
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [family, setFamily] = useState(null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -172,7 +175,7 @@ export default function ShopperApp() {
   const endRef = useRef(null);
   const sampleMember = members[0];
   const suggestions = sampleMember ? [
-    `Find headphones for ${sampleMember.name} under ${money(Math.max(0, Number(sampleMember.spendingLimitEur) - Number(sampleMember.spentEur || 0)))}`,
+    `Find headphones for ${sampleMember.name} under ${money(Number(sampleMember.remainingEur || 0))}`,
     `Compare electric toothbrushes for ${sampleMember.name}`,
     `What’s the best value for ${sampleMember.name}’s budget?`,
   ] : [
@@ -188,6 +191,8 @@ export default function ShopperApp() {
       const state = await response.json();
       setMembers(state.members);
       setPurchases(state.purchases);
+      setPendingApprovals(state.pendingApprovals || []);
+      setFamily(state.family);
       const authResponse = await fetch("/api/idealo/status");
       if (authResponse.ok) {
         const authState = await authResponse.json();
@@ -272,6 +277,16 @@ export default function ShopperApp() {
     return result;
   }
 
+  async function approveRequest(requestId) {
+    setError("");
+    try {
+      const response = await fetch("/api/family/approve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not approve this request.");
+      await refreshState();
+    } catch (err) { setError(err.message); }
+  }
+
   async function addFamilyMember(event) {
     event.preventDefault();
     setMemberSaving(true);
@@ -337,8 +352,11 @@ export default function ShopperApp() {
 
           <aside className="insights-column">
             <div className="section-heading"><div><span className="section-kicker">FAMILY</span><h2>Budget overview</h2></div><button className="icon-button" onClick={() => { setMemberError(""); setMemberModalOpen(true); }} aria-label="Add family member" title="Add family member"><Icon name="plus" size={17} /></button></div>
+            {family && <div className="empty-card">Family budget this month: {money(family.spentEur)} of {money(family.capEur)} spent, {money(family.remainingEur)} left</div>}
             {members.map((member) => <MemberCard key={member.name} member={member} />)}
             {members.length === 0 && <div className="empty-card">Add a family member to start tracking their demo budget.</div>}
+
+            {pendingApprovals.length > 0 && <div className="activity-card"><strong>Waiting for parent approval</strong>{pendingApprovals.map((r) => <div className="purchase-row" key={r.requestId}><div className="purchase-info"><strong>{r.productName}</strong><small>{r.member} · {money(r.priceEur)}</small></div><button className="mock-buy-button" type="button" onClick={() => approveRequest(r.requestId)}>Approve</button></div>)}</div>}
 
             <div className="activity-heading"><div><span className="section-kicker">LOCAL LEDGER</span><h2>Mock purchases</h2></div><span className="activity-count">{purchases.length}</span></div>
             <div className="activity-card">
@@ -346,7 +364,7 @@ export default function ShopperApp() {
               {purchases.length > 0 && <div className="activity-total"><span>Total simulated spend</span><strong>{money(spentTotal)}</strong></div>}
             </div>
 
-            <div className="privacy-card"><div className="privacy-icon"><Icon name="wallet" size={17} /></div><div><strong>Your demo stays local</strong><p>Budgets and pretend purchases are saved on this computer.</p></div></div>
+            <div className="privacy-card"><div className="privacy-icon"><Icon name="wallet" size={17} /></div><div><strong>Your demo stays local</strong><p>Budgets and caps come from the Family Wallet; purchases are simulated.</p></div></div>
           </aside>
         </div>
       </main>

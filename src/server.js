@@ -1,13 +1,13 @@
 import "dotenv/config";
 import OpenAI from "openai";
 import express from "express";
-import { readFile, writeFile, rename } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { callWallet, walletMemberIds } from "./wallet-client.js";
 import { beginIdealoConnection, connectIdealoTools, finishIdealoAuthorization, getIdealoAuthStatus } from "./idealo-oauth.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const familyPath = path.join(root, "data", "family.json");
 const skillPath = path.join(root, "skills", "family-shopper", "SKILL.md");
 const model = process.env.OPENAI_MODEL || "gpt-6.2-sol";
 const app = express();
@@ -15,33 +15,52 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "missing-api-k
 app.use(express.json({ limit: "64kb" }));
 
 const euro = (amount) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount);
-const readFamily = async () => JSON.parse(await readFile(familyPath, "utf8"));
-const remaining = (member) => Math.max(0, Number(member.spendingLimitEur) - Number(member.spentEur));
+const cents = (value) => Math.round(Number(value) * 100);
+const eur = (valueCents) => valueCents / 100;
+const slug = (value) => String(value).trim().toLowerCase();
+const displayName = (id) => id.charAt(0).toUpperCase() + id.slice(1);
 
+// UI member name -> wallet member id: case-insensitive match on the wallet's member ids (parent, teen, child).
+async function resolveWalletMember(memberName) {
+  const id = slug(memberName);
+  return walletMemberIds().includes(id) ? id : null;
+}
+
+// All euro caps and the approval rule live in the Family Wallet MCP; this only converts units and relays results.
 async function recordMockPurchase({ memberName, productName, priceEur, productUrl }) {
-  const family = await readFamily();
-  const member = family.members.find((item) => item.name.toLowerCase() === memberName.trim().toLowerCase());
-  if (!member) return { ok: false, message: `I couldn't find a family profile named ${memberName}.` };
+  const memberId = await resolveWalletMember(memberName);
+  if (!memberId) return { ok: false, message: `I couldn't find a wallet member named ${memberName}. Known members: ${walletMemberIds().join(", ")}.` };
   const price = Number(priceEur);
   if (!Number.isFinite(price) || price <= 0) return { ok: false, message: "The purchase price must be a positive euro amount." };
-  if (price > remaining(member)) {
-    return { ok: false, message: `Not recorded: ${euro(price)} is over ${member.name}'s remaining demo budget of ${euro(remaining(member))}.` };
+  const order = { product_name: String(productName).trim(), shop: "idealo", deep_link: productUrl || "https://www.idealo.de", price_cents: cents(price) };
+  const budget = await callWallet(memberId, "check_budget", { price_cents: order.price_cents });
+  if (!budget.ok) return { ok: false, message: budget.reason };
+  const needsApproval = budget.needs_approval;
+  const result = await callWallet(memberId, needsApproval ? "request_approval" : "place_order", order);
+  if (!result.ok) {
+    return { ok: false, message: `Not recorded: ${result.reason}` };
   }
-  member.spentEur = Math.round((Number(member.spentEur) + price) * 100) / 100;
-  const purchase = {
-    id: `mock-${Date.now()}`,
-    member: member.name,
-    productName: String(productName).trim(),
-    priceEur: Math.round(price * 100) / 100,
-    productUrl: productUrl || null,
-    recordedAt: new Date().toISOString(),
-    simulated: true,
-  };
-  family.mockPurchases.push(purchase);
-  const tempPath = `${familyPath}.tmp`;
-  await writeFile(tempPath, `${JSON.stringify(family, null, 2)}\n`, { mode: 0o600 });
-  await rename(tempPath, familyPath);
-  return { ok: true, message: `Mock purchase recorded for ${member.name}: ${purchase.productName} at ${euro(purchase.priceEur)}. ${euro(remaining(member))} remains. No real order was placed.`, purchase };
+  const purchase = { id: needsApproval ? `request-${result.request_id}` : `order-${result.order_id}`, member: displayName(memberId), productName: order.product_name, priceEur: eur(order.price_cents), productUrl: productUrl || null, pendingApproval: needsApproval, simulated: true };
+  const message = needsApproval
+    ? `Waiting for parent approval: ${purchase.productName} at ${euro(purchase.priceEur)} for ${displayName(memberId)}. Nothing is spent until a parent approves.`
+    : `Mock purchase recorded for ${displayName(memberId)}: ${purchase.productName} at ${euro(purchase.priceEur)}. ${euro(eur(result.remaining_personal_cents ?? result.remaining_family_cents))} remains. No real order was placed.`;
+  return { ok: true, message, purchase };
+}
+
+async function walletMembers() {
+  const members = [];
+  for (const id of walletMemberIds()) {
+    const b = await callWallet(id, "check_budget");
+    if (!b.ok) continue;
+    members.push({
+      id, name: displayName(id), role: b.role,
+      spendingLimitEur: b.personal_cap_cents == null ? null : eur(b.personal_cap_cents),
+      spentEur: eur(b.personal_spent_cents),
+      remainingEur: eur(b.remaining_personal_cents ?? b.remaining_family_cents),
+      familyCapEur: eur(b.family_cap_cents), familySpentEur: eur(b.family_spent_cents), familyRemainingEur: eur(b.remaining_family_cents),
+    });
+  }
+  return members;
 }
 
 const purchaseTool = {
@@ -65,13 +84,9 @@ const purchaseTool = {
 const normalizeName = (value) => String(value).toLocaleLowerCase("de-DE").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 async function getInstructions(messages) {
-  const [skill, family] = await Promise.all([readFile(skillPath, "utf8"), readFamily()]);
-  const profiles = family.members.map((member) => ({
-    name: member.name,
-    spendingLimitEur: member.spendingLimitEur,
-    spentEur: member.spentEur,
-    remainingEur: remaining(member),
-  }));
+  const [skill, walletList] = await Promise.all([readFile(skillPath, "utf8"), walletMembers()]);
+  const family = { members: walletList };
+  const profiles = walletList.map(({ name, role, spendingLimitEur, spentEur, remainingEur, familyRemainingEur }) => ({ name, role, spendingLimitEur, spentEur, remainingEur, familyRemainingEur }));
   const userMessages = messages.filter((message) => message.role === "user");
   const resolveMember = (message) => {
     const content = ` ${normalizeName(message?.content)} `;
@@ -86,10 +101,10 @@ async function getInstructions(messages) {
     }
   }
   const memberContext = selectedMember
-    ? `\n\nResolved shopping member: ${selectedMember.name}. Remaining demo budget: ${euro(remaining(selectedMember))}. The user has already named this member; do not ask who the request is for. Read the latest message as the shopping request and proceed with idealo search when it names a product or category. Ask a follow-up only if a genuinely necessary product detail is missing.`
+    ? `\n\nResolved shopping member: ${selectedMember.name}. Remaining wallet budget: ${euro(selectedMember.remainingEur)}. The user has already named this member; do not ask who the request is for. Read the latest message as the shopping request and proceed with idealo search when it names a product or category. Ask a follow-up only if a genuinely necessary product detail is missing.`
     : "";
   return {
-    instructions: `${skill}\n\nCurrent family demo budgets (source of truth):\n${JSON.stringify(profiles, null, 2)}${memberContext}\n\nFor live shopping use only the idealo MCP tools listed in the tool allowlist. For any mock purchase, call record_mock_purchase; never represent a tool call as a real order.`,
+    instructions: `${skill}\n\nCurrent Family Wallet budgets (source of truth; the wallet enforces all caps and may refuse or require parent approval):\n${JSON.stringify(profiles, null, 2)}${memberContext}\n\nFor live shopping use only the idealo MCP tools listed in the tool allowlist. For any mock purchase, call record_mock_purchase; never represent a tool call as a real order.`,
     memberName: selectedMember?.name || null,
   };
 }
@@ -135,30 +150,28 @@ async function answer(messages) {
 
 app.get("/api/state", async (_request, response) => {
   try {
-    const family = await readFamily();
-    response.json({ members: family.members, purchases: family.mockPurchases || [] });
+    const members = await walletMembers();
+    const orders = await callWallet("parent", "list_orders");
+    const requests = await callWallet("parent", "list_requests", { status: "open" });
+    const purchases = (orders.orders || []).map((o) => ({ id: `order-${o.order_id}`, member: displayName(o.member_id), productName: o.product_name, priceEur: eur(o.price_cents), recordedAt: o.created_at, simulated: true }));
+    const pendingApprovals = (requests.requests || []).map((r) => ({ requestId: r.request_id, member: displayName(r.member_id), productName: r.product_name, priceEur: eur(r.price_cents) }));
+    const parent = members.find((m) => m.role === "parent");
+    response.json({ members, purchases, pendingApprovals, family: parent ? { capEur: parent.familyCapEur, spentEur: parent.familySpentEur, remainingEur: parent.familyRemainingEur } : null });
   } catch (error) { response.status(500).json({ error: error.message }); }
 });
 
-app.post("/api/family/members", async (request, response) => {
-  const name = typeof request.body?.name === "string" ? request.body.name.trim() : "";
-  const spendingLimitEur = Number(request.body?.spendingLimitEur);
-  if (!name || name.length > 60) return response.status(400).json({ error: "Enter a name up to 60 characters." });
-  if (!Number.isFinite(spendingLimitEur) || spendingLimitEur < 0 || spendingLimitEur > 1000000) {
-    return response.status(400).json({ error: "Enter a budget between €0 and €1,000,000." });
-  }
+app.post("/api/family/members", (_request, response) => {
+  response.status(403).json({ error: "Members and limits live in the Family Wallet; only a parent may change a limit (wallet tool set_budget)." });
+});
+
+app.post("/api/family/approve", async (request, response) => {
+  const requestId = Number(request.body?.requestId);
+  if (!Number.isInteger(requestId) || requestId <= 0) return response.status(400).json({ error: "Send a valid requestId." });
   try {
-    const family = await readFamily();
-    if (family.members.some((member) => member.name.trim().toLowerCase() === name.toLowerCase())) {
-      return response.status(409).json({ error: "That family member already exists." });
-    }
-    const member = { name, spendingLimitEur: Math.round(spendingLimitEur * 100) / 100, spentEur: 0 };
-    family.members.push(member);
-    const tempPath = `${familyPath}.tmp`;
-    await writeFile(tempPath, `${JSON.stringify(family, null, 2)}\n`, { mode: 0o600 });
-    await rename(tempPath, familyPath);
-    response.status(201).json({ member });
-  } catch (error) { response.status(500).json({ error: error.message || "Could not save the family member." }); }
+    const result = await callWallet("parent", "approve_request", { request_id: requestId });
+    if (!result.ok) return response.status(400).json({ error: result.reason });
+    response.json({ ok: true, message: `Approved: ${result.product_name} for ${displayName(result.member_id)}.`, order: result });
+  } catch (error) { response.status(502).json({ error: error.message }); }
 });
 
 app.post("/api/family/mock-purchases", async (request, response) => {
@@ -173,7 +186,6 @@ app.post("/api/family/mock-purchases", async (request, response) => {
   if (!result.ok) return response.status(400).json({ error: result.message });
   response.status(201).json(result);
 });
-
 
 app.get("/api/idealo/status", async (_request, response) => {
   try { response.json(await getIdealoAuthStatus()); }
