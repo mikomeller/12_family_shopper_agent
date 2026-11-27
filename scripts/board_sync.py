@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
 Author:    mikomeller
-Version:   0.1.0
+Version:   0.1.1
 Filename:  board_sync.py
 Pathname:  scripts/board_sync.py
 Purpose:   Let the GitHub Project board follow pull requests: stories named in the PR title move to
            "In progress" when the PR opens and to "Test" when it is merged. Never sets Demo-ready, never
-           moves epics, idempotent. Runs in .github/workflows/board-sync.yml, usable by hand with --dry-run.
+           moves epics, idempotent (one marker comment per pull request and story). Runs in .github/workflows/board-sync.yml, usable by hand with --dry-run.
 Usage:     python3 scripts/board_sync.py --event opened|merged --pr 12 --title "feat: x (#7, #8)" \
                [--sha <merge sha>] [--repo owner/name] [--dry-run]
            Tokens: GH_TOKEN (project scope) for the board; ISSUE_TOKEN (optional) for issue comments.
@@ -30,6 +30,8 @@ SKIP_MESSAGE = "board sync skipped: no PROJECT_TOKEN secret configured"
 OPEN_FROM = {"Ideas", "Backlog", "Ready"}
 TEST_FROM = {"", "Ideas", "Backlog", "Ready", "In progress"}
 MAX_ISSUES = 20
+ITEM_LIMIT = 500
+BOT_LOGIN = "github-actions[bot]"
 NUMBER_RE = re.compile(r"#([0-9]{1,7})(?![0-9])")
 
 # runner(args, token) -> (returncode, stdout, stderr); args never go through a shell
@@ -70,9 +72,14 @@ def decide(event: str, stage: str) -> str | None:
     raise ValueError(f"unknown event {event!r}")
 
 
-def comment_text(pr: int, title: str, sha: str) -> str:
-    short = (sha or "unknown")[:7]
-    return f'Moved to Test by the board automation: pull request #{pr} "{title}" was merged ({short}).'
+def marker(pr: int) -> str:
+    return f"<!-- board-sync pr={pr} -->"
+
+
+def comment_text(pr: int, sha: str) -> str:
+    """No pull request text at all (no title): only the number and a short sha."""
+    short = re.sub(r"[^0-9a-fA-F]", "", sha or "")[:7] or "unknown"
+    return f"Moved to Test by the board automation: pull request #{pr} was merged ({short}).\n{marker(pr)}"
 
 
 class Board:
@@ -82,6 +89,7 @@ class Board:
         self.project: dict = {}
         self.field: dict = {}
         self.items: dict[int, dict] = {}
+        self.warnings: list[str] = []
 
     def _json(self, args: list[str], token: str, what: str):
         rc, out, err = self.run(args, token)
@@ -104,11 +112,14 @@ class Board:
         self.field = next((f for f in fields if f.get("name") == STAGE_FIELD), {})
         if not self.field:
             raise BoardError(f"field '{STAGE_FIELD}' not found on the project")
-        items = self._json(["project", "item-list", num, "--owner", OWNER, "--format", "json", "--limit", "500"],
+        items = self._json(["project", "item-list", num, "--owner", OWNER, "--format", "json", "--limit", str(ITEM_LIMIT)],
                            self.ptoken, "item list").get("items", [])
+        if len(items) >= ITEM_LIMIT:
+            self.warnings.append(f"warning: project has {len(items)}+ items; raise the limit")
         for item in items:
-            n = (item.get("content") or {}).get("number")
-            if n:
+            content = item.get("content") or {}
+            n = content.get("number")
+            if n and content.get("repository") == self.repo:
                 self.items[int(n)] = item
 
     def issue(self, number: int) -> dict | None:
@@ -134,12 +145,21 @@ class Board:
             raise BoardError(f"moving the card failed: {err.strip() or 'gh exit ' + str(rc)}")
 
     def has_comment(self, number: int, pr: int) -> bool:
-        rc, out, err = self.run(["api", "--paginate", f"repos/{self.repo}/issues/{number}/comments", "--jq", ".[].body"],
+        """True only for a comment of the automation's own account that holds the exact marker of this PR."""
+        jq = ".[] | [.user.login, .user.type, .body] | @json"
+        rc, out, err = self.run(["api", "--paginate", f"repos/{self.repo}/issues/{number}/comments", "--jq", jq],
                                 self.itoken)
         if rc != 0:
             raise BoardError(f"reading comments of #{number} failed: {err.strip() or 'gh exit ' + str(rc)}")
-        marker = f"pull request #{pr}"
-        return any(marker in line and "board automation" in line for line in out.splitlines())
+        wanted = marker(pr)
+        for line in out.splitlines():
+            try:
+                login, _kind, body = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if login == BOT_LOGIN and wanted in (body or ""):
+                return True
+        return False
 
     def post_comment(self, number: int, body: str) -> None:
         rc, _, err = self.run(["api", "-X", "POST", f"repos/{self.repo}/issues/{number}/comments", "-f", f"body={body}"],
@@ -148,7 +168,23 @@ class Board:
             raise BoardError(f"commenting on #{number} failed: {err.strip() or 'gh exit ' + str(rc)}")
 
 
-def sync(board: Board, event: str, pr: int, title: str, sha: str, dry: bool) -> list[str]:
+def ensure_comment(board: Board, n: int, pr: int, sha: str, dry: bool, errors: list[str]) -> str:
+    """Post the marker comment once; a failure is collected (the card move is not undone)."""
+    try:
+        if board.has_comment(n, pr):
+            return " (comment exists)"
+        if dry:
+            return " (comment would be posted)"
+        board.post_comment(n, comment_text(pr, sha))
+        return " (comment posted)"
+    except BoardError as exc:
+        errors.append(str(exc))
+        return " (comment FAILED)"
+
+
+def sync(board: Board, event: str, pr: int, title: str, sha: str, dry: bool,
+         errors: list[str] | None = None) -> list[str]:
+    errors = [] if errors is None else errors
     prefix = "DRY " if dry else ""
     lines: list[str] = []
     for n in parse_numbers(title, pr):
@@ -170,18 +206,17 @@ def sync(board: Board, event: str, pr: int, title: str, sha: str, dry: bool) -> 
         stage = field_value(item, STAGE_FIELD)
         target = decide(event, stage)
         if target is None:
-            lines.append(f"{prefix}#{n} {stage or '(no Stage)'}: unchanged")
+            line = f"{prefix}#{n} {stage or '(no Stage)'}: unchanged"
+            # merged PR naming a story already in Test: add the missing comment once (never for Demo-ready)
+            if event == "merged" and stage == "Test":
+                line += ensure_comment(board, n, pr, sha, dry, errors)
+            lines.append(line)
             continue
         line = f"{prefix}#{n} {stage or '(no Stage)'} -> {target}"
         if not dry:
             board.set_stage(item, target)
         if event == "merged":
-            if board.has_comment(n, pr):
-                line += " (comment exists)"
-            else:
-                line += " (comment posted)" if not dry else " (comment would be posted)"
-                if not dry:
-                    board.post_comment(n, comment_text(pr, title, sha))
+            line += ensure_comment(board, n, pr, sha, dry, errors)
         lines.append(line)
     return lines
 
@@ -204,8 +239,15 @@ def main(argv: list[str] | None = None, run: Runner = real_runner, environ: dict
     board = Board(run, args.repo, token, env.get("ISSUE_TOKEN") or token)
     try:
         board.load()
-        for line in sync(board, args.event, args.pr, args.title, args.sha, args.dry_run):
+        for line in board.warnings:
             print(line)
+        errors: list[str] = []
+        for line in sync(board, args.event, args.pr, args.title, args.sha, args.dry_run, errors):
+            print(line)
+        if errors:
+            for err in errors:
+                print(f"board sync failed: {err}", file=sys.stderr)
+            return 1
     except BoardError as exc:
         print(f"board sync failed: {exc}", file=sys.stderr)
         return 1
