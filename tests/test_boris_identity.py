@@ -71,7 +71,8 @@ def test_boris_teen_cap_enforced(boris_service, ledger):
 
 
 def test_boris_child_orders_within_budget_and_requests_above_it(boris_service, ledger):
-    # Owner decision 2026-11-27: up to the child's budget (2000 cents) the wallet decides; above it a parent steps in.
+    # Owner decision 2026-11-27: up to the child's budget (2000 cents) the wallet decides;
+    # above it a parent steps in.
     with request_meta({AGENT_IDENTITY_KEY: "child"}):
         ok = dump(boris_service.place_order(price_cents=100, **ORDER))
         refused = dump(boris_service.place_order(price_cents=2000, **ORDER))
