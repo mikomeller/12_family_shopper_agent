@@ -1,5 +1,5 @@
 // Author:    mikomeller
-// Version:   0.1.5
+// Version:   0.1.6
 // Filename:  ui_wallet_smoke.mjs
 // Pathname:  scripts/ui_wallet_smoke.mjs
 // Purpose:   Smoke test of the Node UI server (offline mode, no OpenAI key) against the Family Wallet; start the server with a fresh WALLET_DB
@@ -92,30 +92,63 @@ const tstate = await call("GET", "/api/state", null, "teen");
 check("teen GET /api/state shows no orders of other members", tstate.body.purchases?.length >= 1 && tstate.body.purchases.every((o) => o.member === "Teen"), JSON.stringify(tstate.body.purchases?.map((o) => o.member)));
 
 const BP = { productRef: "hobbit-pb", productUrl: "https://shop-a.example/hobbit" };
+const childLeft = async () => (await call("GET", "/api/state", null, "child")).body.members?.[0]?.remainingEur;
+const famSpent = async () => (await call("GET", "/api/state", null, "parent")).body.family?.spentEur;
+const leftBefore = await childLeft();
 const kid = await buy("child", { ...BP, priceEur: 10.99 });
-check("child purchase is pending approval", kid.status === 201 && kid.body.purchase?.pendingApproval === true, kid.body.message || kid.body.error);
-const req = (await call("GET", "/api/state", null, "parent")).body.pendingApprovals?.find((r) => r.member === "Child");
+check("child buys the Hobbit -> 201 ORDER (not pending)", kid.status === 201 && kid.body.ok === true && kid.body.purchase?.pendingApproval === false && /^order-/.test(kid.body.purchase?.id || ""), kid.body.message || kid.body.error);
+check("child's remaining dropped", (await childLeft()) < leftBefore, `${leftBefore} -> ${await childLeft()}`);
+
+const BG = { productRef: "boardgame-dice", productUrl: "https://shop-spielkiste.example/wuerfelwald" };
+const ordersBeforeBg = await orderCount();
+const bg = await buy("child", BG);
+check("child board game above own budget -> 409 canAskParent, wallet reason + 'A parent can step in.'",
+  bg.status === 409 && bg.body.canAskParent === true && bg.body.productRef === "boardgame-dice" && typeof bg.body.priceEur === "number" && /A parent can step in\.$/.test(bg.body.error || "") && /monthly limit/i.test(bg.body.error || ""), JSON.stringify(bg.body));
+const openAfterBg = (await call("GET", "/api/state", null, "parent")).body.pendingApprovals?.length;
+check("409 recorded nothing (no order, no request)", (await orderCount()) === ordersBeforeBg && openAfterBg === 0, `orders ${ordersBeforeBg}, open ${openAfterBg}`);
+
+const noHdr = await call("POST", "/api/family/request-approval", BG);
+check("request-approval without header is 401", noHdr.status === 401);
+const ra1 = await call("POST", "/api/family/request-approval", BG, "child");
+check("child request-approval -> 201 with requestId", ra1.status === 201 && ra1.body.ok === true && Number.isInteger(ra1.body.request?.requestId) && /Nothing is spent until a parent approves/.test(ra1.body.message || ""), JSON.stringify(ra1.body));
+const ra2 = await call("POST", "/api/family/request-approval", BG, "child");
+check("second child request-approval -> 201", ra2.status === 201, JSON.stringify(ra2.body));
+const taRa = await call("POST", "/api/family/request-approval", BG, "teen");
+check("teen request-approval -> 403 (role not allowed)", taRa.status === 403 && taRa.body.error_code === "NOT_ALLOWED_FOR_ROLE", JSON.stringify(taRa.body));
+const hpRa = await call("POST", "/api/family/request-approval", { productRef: "headphones-x1", productUrl: HP.productUrl }, "child");
+check("headphones via request-approval (child) -> 409 INFLATED", hpRa.status === 409 && hpRa.body.verdict === "INFLATED", hpRa.body.error);
+const hpRaP = await call("POST", "/api/family/request-approval", { productRef: "headphones-x1", productUrl: HP.productUrl }, "parent");
+check("headphones via request-approval (parent) -> 409 INFLATED", hpRaP.status === 409 && hpRaP.body.verdict === "INFLATED", hpRaP.body.error);
+const hpChild = await buy("child", { ...HP, priceEur: 299 });
+check("headphones as child purchase -> 409 INFLATED", hpChild.status === 409 && hpChild.body.verdict === "INFLATED", hpChild.body.error);
+const hpTeen = await buy("teen", { ...HP, priceEur: 299 });
+check("headphones as teen purchase -> 409 INFLATED", hpTeen.status === 409 && hpTeen.body.verdict === "INFLATED", hpTeen.body.error);
+
+const open = (await call("GET", "/api/state", null, "parent")).body.pendingApprovals?.filter((r) => r.member === "Child") || [];
+check("two open child requests", open.length === 2, JSON.stringify(open));
+const [req, req2] = open;
 const cstate = await call("GET", "/api/state", null, "child");
-check("child sees only its own open request", cstate.body.pendingApprovals?.length >= 1 && cstate.body.pendingApprovals.every((r) => r.member === "Child"));
+check("child sees only its own open requests", cstate.body.pendingApprovals?.length === 2 && cstate.body.pendingApprovals.every((r) => r.member === "Child"));
 const badId = await call("POST", "/api/family/approve", { requestId: true }, "parent");
 check("requestId true -> 400", badId.status === 400, badId.body.error);
 
+const childApprove = await call("POST", "/api/family/approve", { requestId: req?.requestId }, "child");
+check("child cannot approve (403)", childApprove.status === 403 && /parent/i.test(childApprove.body.error || ""), childApprove.body.error);
 const tryApprove = await call("POST", "/api/family/approve", { requestId: req?.requestId }, "teen");
 check("teen approve refused by the wallet", tryApprove.status === 403 && /parent/i.test(tryApprove.body.error || ""), tryApprove.body.error);
 
+const spentBefore = (await call("GET", "/api/state", null, "parent")).body.members.find((m) => m.id === "child").spentEur;
 const rej = await call("POST", "/api/family/reject", { requestId: req?.requestId }, "parent");
-if (/unknown tool|not found|no such tool/i.test(rej.body.error || "") || rej.status === 502) console.log(`SKIP reject (wallet tool missing) - ${rej.body.error}`);
-else {
-  const spentBefore = (await call("GET", "/api/state", null, "parent")).body.members.find((m) => m.id === "child").spentEur;
-  check("parent rejects request", rej.status === 200 && rej.body.request?.status === "rejected", rej.body.error || JSON.stringify(rej.body.request));
-  const st = await call("GET", "/api/state", null, "parent");
-  check("rejected request no longer open, no spend", !st.body.pendingApprovals.some((r) => r.requestId === req?.requestId) && st.body.members.find((m) => m.id === "child").spentEur === spentBefore);
-}
+check("parent rejects request", rej.status === 200 && rej.body.request?.status === "rejected", rej.body.error || JSON.stringify(rej.body.request));
+const st = await call("GET", "/api/state", null, "parent");
+check("rejected request no longer open, no spend", !st.body.pendingApprovals.some((r) => r.requestId === req?.requestId) && st.body.members.find((m) => m.id === "child").spentEur === spentBefore);
 
-await buy("child", { ...BP, priceEur: 10.99 });
-const req2 = (await call("GET", "/api/state", null, "parent")).body.pendingApprovals?.[0];
+const famBefore = await famSpent();
+const ordersBeforeAppr = await orderCount();
 const appr = await call("POST", "/api/family/approve", { requestId: req2?.requestId }, "parent");
-check("parent approves second request", appr.status === 200 && appr.body.ok === true, appr.body.message || appr.body.error);
+check("parent approves the over-budget request -> order recorded", appr.status === 200 && appr.body.ok === true && (await orderCount()) === ordersBeforeAppr + 1, appr.body.message || appr.body.error);
+check("child's remaining shows 0 (not negative)", (await childLeft()) === 0, String(await childLeft()));
+check("family total went up by the order", (await famSpent()) > famBefore, `${famBefore} -> ${await famSpent()}`);
 
 const add = await call("POST", "/api/family/members", { name: "Mallory", spendingLimitEur: 99999 }, "parent");
 check("POST /api/family/members is 403", add.status === 403, add.body.error);

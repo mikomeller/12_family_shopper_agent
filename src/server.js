@@ -1,5 +1,5 @@
 // Author:    rodrigo, mikomeller, rhaveen-sa
-// Version:   0.1.1
+// Version:   0.1.2
 // Filename:  server.js
 // Pathname:  src/server.js
 // Purpose:   Node server of the Family Shopper web app: chat with the model, idealo MCP (live or sample catalogue),
@@ -73,7 +73,7 @@ const unverified = () => fail(409, "Not recorded: the discount could not be veri
 // Only the verdicts GENUINE and NOT_BEST_PRICE proceed. With the LIVE idealo catalogue the server cannot verify the price,
 // so purchases are refused (501) unless env ALLOW_UNVERIFIED_LIVE_PURCHASES=1 is set (then priceVerified:false).
 // The model tool record_mock_purchase uses this same function, so a model's priceEur/claimedWasEur are not trusted either.
-async function recordMockPurchase({ callerId, memberName, productName, priceEur, productUrl, productRef }) {
+async function verifyOrder({ callerId, memberName, productName, priceEur, productUrl, productRef }) {
   const memberId = callerId;
   if (memberName != null && memberName !== "" && slug(memberName) !== memberId) return fail(403, `You are signed in as ${displayName(memberId)}; you cannot buy as ${memberName}.`);
   productUrl = productUrl ? String(productUrl).split("#")[0] : null;
@@ -83,7 +83,7 @@ async function recordMockPurchase({ callerId, memberName, productName, priceEur,
   let verdict = null;
   let priceVerified = true;
   if (await usingMock()) {
-    if (typeof productRef !== "string" || !productRef.trim() || productRef.length > 100) return fail(400, "A purchase needs a productRef from the catalogue.");
+    if (typeof productRef !== "string" || !productRef.trim() || productRef.length > 100) return fail(400, "A purchase or request needs a productRef from the catalogue.");
     const ref = productRef.trim();
     let details; let offers; let history;
     try {
@@ -111,16 +111,38 @@ async function recordMockPurchase({ callerId, memberName, productName, priceEur,
     priceVerified = false;
     order = { product_name: productName.trim().slice(0, 200), shop: "idealo", deep_link: productUrl || "https://www.idealo.de", price_cents: clientCents };
   }
+  return { order, verdict, priceVerified };
+}
+
+const stepIn = (reason) => `${String(reason || "").replace(/\s*A parent can step in: use request_approval\.\s*$/, "").trim()} A parent can step in.`;
+
+// Buy as the signed-in member. The wallet decides: fits -> place_order (child like teen); child above own budget but family ok -> 409 canAskParent, nothing recorded.
+async function recordMockPurchase(input) {
+  const v = await verifyOrder(input);
+  if (v.ok === false) return v;
+  const { order, verdict, priceVerified } = v;
+  const memberId = input.callerId;
   const budget = await callWallet(memberId, "check_budget", { price_cents: order.price_cents });
   if (!budget.ok) return fail(400, budget.reason);
-  const needsApproval = budget.needs_approval;
-  const result = await callWallet(memberId, needsApproval ? "request_approval" : "place_order", order);
-  if (!result.ok) return fail(400, `Not recorded: ${result.reason}`);
-  const purchase = { id: needsApproval ? `request-${result.request_id}` : `order-${result.order_id}`, member: displayName(memberId), productName: order.product_name, priceEur: eur(order.price_cents), productUrl: order.deep_link, shop: order.shop, pendingApproval: needsApproval };
-  const message = needsApproval
-    ? `Waiting for parent approval: ${purchase.productName} at ${euro(purchase.priceEur)} for ${displayName(memberId)}. Nothing is spent until a parent approves.`
-    : `Order recorded for ${displayName(memberId)}: ${purchase.productName} at ${euro(purchase.priceEur)}. ${euro(eur(result.remaining_personal_cents ?? result.remaining_family_cents))} remains this month. No payment was made.`;
+  // place_order creates nothing when it refuses, so its refusal doubles as the wallet's own reason text.
+  const result = await callWallet(memberId, "place_order", order);
+  if (!result.ok) {
+    if (budget.needs_approval) return fail(409, stepIn(result.reason), { canAskParent: true, productRef: input.productRef ?? null, priceEur: eur(order.price_cents) });
+    return fail(400, `Not recorded: ${result.reason}`);
+  }
+  const purchase = { id: `order-${result.order_id}`, member: displayName(memberId), productName: order.product_name, priceEur: eur(order.price_cents), productUrl: order.deep_link, shop: order.shop, pendingApproval: false };
+  const message = `Order recorded for ${displayName(memberId)}: ${purchase.productName} at ${euro(purchase.priceEur)}. ${euro(eur(result.remaining_personal_cents ?? result.remaining_family_cents))} remains this month. No payment was made.`;
   return { ok: true, message: verdict ? `${message} Discount check: ${verdict}.` : message, purchase, ...(verdict ? { verdict } : {}), ...(priceVerified ? {} : { priceVerified: false }) };
+}
+
+// Ask a parent: same catalogue verification, then the wallet's request_approval as the signed-in member (no order, no spend).
+async function requestParentApproval(input) {
+  const v = await verifyOrder(input);
+  if (v.ok === false) return v;
+  const { order } = v;
+  const result = await callWallet(input.callerId, "request_approval", order);
+  if (!result.ok) return fail(result.error_code === "NOT_ALLOWED_FOR_ROLE" ? 403 : 400, result.reason, { error_code: result.error_code });
+  return { ok: true, message: `Request sent to a parent: ${order.product_name} at ${euro(eur(order.price_cents))}. Nothing is spent until a parent approves.`, request: { ...result, requestId: result.request_id } };
 }
 
 // Budgets as the given caller: a parent sees all members, everyone else only their own line (the wallet decides what it returns).
@@ -161,6 +183,19 @@ const purchaseTool = {
   },
 };
 
+const approvalTool = {
+  type: "function",
+  name: "request_parent_approval",
+  description: "Ask a parent to approve a purchase that is above the child's own remaining budget (after record_mock_purchase answered canAskParent). Creates an open request only; nothing is ordered or spent until a parent approves.",
+  strict: true,
+  parameters: {
+    type: "object",
+    properties: { productRef: { type: "string" }, productUrl: { type: ["string", "null"] } },
+    required: ["productRef", "productUrl"],
+    additionalProperties: false,
+  },
+};
+
 const normalizeName = (value) => String(value).toLocaleLowerCase("de-DE").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 async function getInstructions(messages, callerId) {
@@ -184,7 +219,7 @@ async function getInstructions(messages, callerId) {
     ? `\n\nResolved shopping member: ${selectedMember.name}. Remaining wallet budget: ${euro(selectedMember.remainingEur)}. The user has already named this member; do not ask who the request is for. Read the latest message as the shopping request and proceed with idealo search when it names a product or category. Ask a follow-up only if a genuinely necessary product detail is missing.`
     : "";
   return {
-    instructions: `${skill}\n\nCurrent Family Wallet budgets (source of truth; the wallet enforces all caps and may refuse or require parent approval):\n${JSON.stringify(profiles, null, 2)}${memberContext}\n\nAlways respond to the user in English. Keep product, brand, and shop names in their original form. For live shopping use only the idealo MCP tools listed in the tool allowlist. For any mock purchase, call record_mock_purchase; never represent a tool call as a real order.`,
+    instructions: `${skill}\n\nCurrent Family Wallet budgets (source of truth; the wallet enforces all caps and may refuse; above a child's own budget a parent can step in):\n${JSON.stringify(profiles, null, 2)}${memberContext}\n\nAlways respond to the user in English. Keep product, brand, and shop names in their original form. For live shopping use only the idealo MCP tools listed in the tool allowlist. For any mock purchase, call record_mock_purchase; never represent a tool call as a real order.`,
     memberName: selectedMember?.name || null,
   };
 }
@@ -194,24 +229,32 @@ async function getInstructions(messages, callerId) {
 async function enforceBudget(callerId, name, result) {
   if (name !== "get_product_offers" && name !== "search_products") return result;
   if (!result || result.error) return result;
+  const PARENT_NOTE = "Above the child's budget: the child cannot order these; a parent can step in (request_parent_approval).";
   const NOTE = "No offer fits the caller's remaining budget. Do not present this product as buyable; tell the user how much is left and suggest cheaper alternatives.";
   try {
     const summary = { caller: callerId, omitted_over_budget: 0, remaining_personal_cents: null, remaining_family_cents: null, needs_approval: false };
+    const needsParent = [];
     const ask = async (cents) => {
       const r = await callWallet(callerId, "check_budget", { price_cents: cents });
       if (!r || r.ok === false) throw new Error("wallet refused check_budget");
       summary.remaining_personal_cents = r.remaining_personal_cents ?? summary.remaining_personal_cents;
       summary.remaining_family_cents = r.remaining_family_cents ?? summary.remaining_family_cents;
       if (r.needs_approval) summary.needs_approval = true;
-      return r.fits === true;
+      return r;
     };
     if (name === "get_product_offers") {
       if (!Array.isArray(result.offers)) return result;
       const kept = [];
       for (const o of result.offers) {
-        if (Number.isInteger(o.total_cents) && await ask(o.total_cents)) kept.push(o); else summary.omitted_over_budget += 1;
+        const r = Number.isInteger(o.total_cents) ? await ask(o.total_cents) : null;
+        if (r?.fits === true) kept.push(o);
+        else {
+          summary.omitted_over_budget += 1;
+          if (r?.needs_approval === true) needsParent.push({ shop: o.shop, total_cents: o.total_cents, deep_link: o.deep_link });
+        }
       }
       const out = { ...result, offers: kept, budget_filter: summary };
+      if (needsParent.length) { out.needs_parent = needsParent; out.parent_note = PARENT_NOTE; }
       if (!kept.length) out.note = NOTE;
       return out;
     }
@@ -220,7 +263,7 @@ async function enforceBudget(callerId, name, result) {
     const marked = [];
     for (const r of result.results) {
       const cents = r.total_cents ?? r.cheapest_total_cents;
-      const fits = Number.isInteger(cents) ? await ask(cents) : false;
+      const fits = Number.isInteger(cents) ? (await ask(cents)).fits === true : false;
       if (!fits) summary.omitted_over_budget += 1;
       marked.push({ ...r, fits_budget: fits });
     }
@@ -243,10 +286,11 @@ async function answer(messages, callerId) {
       parameters: tool.inputSchema || { type: "object", properties: {}, additionalProperties: true },
     }));
     const toolNames = new Set(catalogueTools.map((t) => t.name));
-    const tools = [...catalogueTools, purchaseTool];
+    const tools = [...catalogueTools, purchaseTool, approvalTool];
     // The caller is always the signed-in member (callerId), never anything the model puts in its arguments.
     const callTool = async (name, args) => {
       if (name === "record_mock_purchase") return recordMockPurchase({ ...args, callerId });
+      if (name === "request_parent_approval") return requestParentApproval({ productRef: args.productRef, productUrl: args.productUrl || null, callerId });
       if (!toolNames.has(name)) return { error: true, message: "Unknown tool." };
       if (mock) return enforceBudget(callerId, name, await connection.callTool(name, args));
       // Live idealo catalogue: NOT budget-filtered here (not verifiable today); only the mock catalogue is enforced.
@@ -324,7 +368,15 @@ app.post("/api/family/mock-purchases", async (request, response) => {
     return response.status(400).json({ error: "This product link is invalid." });
   }
   const result = await recordMockPurchase({ callerId: request.member, memberName, productName, priceEur, productUrl: productUrl || null, productRef });
-  if (!result.ok) return response.status(result.status || 400).json({ error: result.message, ...(result.verdict ? { verdict: result.verdict } : {}) });
+  if (!result.ok) return response.status(result.status || 400).json({ error: result.message, ...(result.verdict ? { verdict: result.verdict } : {}), ...(result.canAskParent ? { canAskParent: true, productRef: result.productRef, priceEur: result.priceEur } : {}) });
+  response.status(201).json(result);
+});
+
+app.post("/api/family/request-approval", async (request, response) => {
+  const { productRef, productUrl, productName } = request.body || {};
+  if (productUrl !== null && productUrl !== undefined && (typeof productUrl !== "string" || !/^https?:\/\//i.test(productUrl))) return response.status(400).json({ error: "This product link is invalid." });
+  const result = await requestParentApproval({ callerId: request.member, productName, productUrl: productUrl || null, productRef });
+  if (!result.ok) return response.status(result.status || 400).json({ error: result.message, ...(result.verdict ? { verdict: result.verdict } : {}), ...(result.error_code ? { error_code: result.error_code } : {}) });
   response.status(201).json(result);
 });
 

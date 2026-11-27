@@ -101,10 +101,26 @@ function AppMark() {
   return <div className="brand-mark"><Ring still size={30} stroke={4} arcs={[{ tone: "teen", pct: 75 }, { tone: "child", pct: 55 }, { tone: "fam", pct: 35 }]} /></div>;
 }
 
-function InlineText({ text }) {
+function AskParentButton({ product, onAsk, locked }) {
+  const [st, setSt] = useState({ status: "idle" });
+  async function go() {
+    setSt({ status: "pending" });
+    try { const r = await onAsk(product); setSt({ status: "done", text: r?.message || "Request sent to a parent." }); }
+    catch (e) { setSt({ status: "error", text: e.message }); }
+  }
+  return <>{st.status !== "done" && <button className="secondary-button" type="button" disabled={locked || st.status === "pending" || !onAsk} onClick={go}>{st.status === "pending" ? "Sending…" : "Ask a parent"}</button>}
+    {st.status === "done" && <StatusCard kind="waiting" text={st.text} />}
+    {st.status === "error" && <StatusCard kind={errorKind(st.text)} text={st.text} />}</>;
+}
+
+function InlineText({ text, onAsk, locked }) {
   const parts = String(text).split(/(\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\(https?:\/\/[^\s)]+\))/g).filter(Boolean);
   return parts.map((part, index) => {
     const link = part.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/);
+    if (link && /[#&]ask=1(&|$)/.test(link[2])) {
+      const frag = new URLSearchParams(link[2].split("#")[1] || "");
+      return <AskParentButton key={index} product={{ productRef: frag.get("ref") || undefined, productUrl: link[2] }} onAsk={onAsk} locked={locked} />;
+    }
     if (link) return <a key={index} href={link[2]} target="_blank" rel="noreferrer">{link[1]}</a>;
     if (part.startsWith("**") && part.endsWith("**")) return <strong key={index}>{part.slice(2, -2)}</strong>;
     if (part.startsWith("*") && part.endsWith("*")) return <em key={index}>{part.slice(1, -1)}</em>;
@@ -132,7 +148,7 @@ function getProductFromRow(row) {
 
 const STATUS = {
   ordered: { label: "Ordered", icon: "check" },
-  waiting: { label: "Waiting for parent approval", icon: "clock" },
+  waiting: { label: "Waiting for a parent", icon: "clock" },
   refused: { label: "Refused: over the monthly limit", icon: "stop" },
   blocked: { label: "Blocked: discount is not real", icon: "stop" },
   rejected: { label: "Rejected by parent", icon: "stop" },
@@ -145,8 +161,8 @@ function errorKind(message) {
   if (/reject/i.test(m)) return "rejected";
   return "error";
 }
-function StatusCard({ kind, text, verdict }) {
-  const st = STATUS[kind] || STATUS.error;
+function StatusCard({ kind, text, verdict, label }) {
+  const st = { ...(STATUS[kind] || STATUS.error), ...(label ? { label } : {}) };
   return <div className={`status-card status-${kind}`} role={kind === "ordered" || kind === "waiting" ? "status" : "alert"}><Icon name={st.icon} size={18} /><div><strong>{st.label}{verdict ? ` · verdict ${verdict}` : ""}</strong><span>{text}</span></div></div>;
 }
 function VerdictBadge({ verdict }) {
@@ -157,32 +173,31 @@ function VerdictBadge({ verdict }) {
 const ROLE_INFO = {
   parent: { label: "Parent", rule: "Approves requests. No personal limit.", color: "var(--role-parent)" },
   teen: { label: "Teen", rule: "Orders alone up to the personal monthly limit.", color: "var(--role-teen)" },
-  child: { label: "Child", rule: "Every order needs a parent.", color: "var(--role-child)" },
+  child: { label: "Child", rule: "Orders alone up to its monthly limit; above that a parent steps in.", color: "var(--role-child)" },
 };
 
 function PurchaseModal({ conf, busy, budget, onConfirm, onCancel }) {
   const confirmRef = useRef(null);
   useEffect(() => { confirmRef.current?.focus(); }, []);
   useEffect(() => { const h = (e) => { if (e.key === "Escape") onCancel(); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); });
-  const child = budget?.role === "child";
   const p = conf.product;
   return <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
     <section className="purchase-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="pc-title" aria-describedby="pc-note">
-      <h2 id="pc-title">{child ? "Ask a parent?" : "Order this?"}</h2>
+      <h2 id="pc-title">Order this?</h2>
       <p>{p.productName}{p.shopName ? ` from ${p.shopName}` : ""}</p>
       <dl className="pc-summary">
         <div><dt>Price incl. shipping</dt><dd>{money(p.priceEur)}</dd></div>
         {budget?.meLeft != null && <div><dt>Your budget now</dt><dd>{money(budget.meLeft)}</dd></div>}
         {budget?.familyLeft != null && <div><dt>Family budget now</dt><dd>{money(budget.familyLeft)}</dd></div>}
       </dl>
-      <div className="purchase-confirm-note" id="pc-note">{child ? "A parent has to approve this before anything is ordered. " : ""}The order is recorded in the family wallet. No payment is made.</div>
+      <div className="purchase-confirm-note" id="pc-note">The order is recorded in the family wallet. No payment is made.</div>
       {conf.error && <div className="modal-error" role="alert">{conf.error} Check the offer or pick a cheaper one, then retry.</div>}
-      <div className="modal-actions"><button type="button" className="modal-cancel" onClick={onCancel} disabled={busy}>Cancel</button><button ref={confirmRef} type="button" className="modal-save" onClick={onConfirm} disabled={busy}>{busy ? "Sending…" : conf.error ? "Retry" : child ? "Send request to parent" : "Order now"}</button></div>
+      <div className="modal-actions"><button type="button" className="modal-cancel" onClick={onCancel} disabled={busy}>Cancel</button><button ref={confirmRef} type="button" className="modal-save" onClick={onConfirm} disabled={busy}>{busy ? "Sending…" : conf.error ? "Retry" : "Order now"}</button></div>
     </section>
   </div>;
 }
 
-function FormattedReply({ content, memberName, onMockPurchase, budget }) {
+function FormattedReply({ content, memberName, onMockPurchase, onAskParent, budget }) {
   const [purchaseStates, setPurchaseStates] = useState({});
   const [purchaseConfirmation, setPurchaseConfirmation] = useState(null);
   const [purchaseConfirming, setPurchaseConfirming] = useState(false);
@@ -226,11 +241,16 @@ function FormattedReply({ content, memberName, onMockPurchase, budget }) {
     setPurchaseConfirming(true);
     try {
       const result = await onMockPurchase({ ...product, memberName });
-      setPurchaseStates((current) => ({ ...current, [rowKey]: { status: "done", message: result?.purchase?.pendingApproval ? "Waiting for parent approval" : "", text: result?.message || "", verdict: result?.verdict || "" } }));
+      setPurchaseStates((current) => ({ ...current, [rowKey]: { status: "done", message: result?.purchase?.pendingApproval ? "Waiting for a parent" : "", text: result?.message || "", verdict: result?.verdict || "" } }));
       setPurchaseConfirmation(null);
     } catch (error) {
-      setPurchaseStates((current) => ({ ...current, [rowKey]: { status: "error", message: error.message } }));
-      setPurchaseConfirmation((current) => current ? { ...current, error: error.message } : current);
+      if (error.canAskParent) {
+        setPurchaseStates((current) => ({ ...current, [rowKey]: { status: "overbudget", message: error.message, product } }));
+        setPurchaseConfirmation(null);
+      } else {
+        setPurchaseStates((current) => ({ ...current, [rowKey]: { status: "error", message: error.message } }));
+        setPurchaseConfirmation((current) => current ? { ...current, error: error.message } : current);
+      }
     } finally {
       setPurchaseConfirming(false);
     }
@@ -268,15 +288,16 @@ function FormattedReply({ content, memberName, onMockPurchase, budget }) {
           </div>
           {memberName && <div className="offer-action">{product ? <>
             <div className="offer-price">{money(product.priceEur)}</div>
-            <button className="mock-buy-button" type="button" disabled={state?.status === "pending" || state?.status === "done"} aria-label={`Order ${product.productName} for ${memberName}`} onClick={() => setPurchaseConfirmation({ product: { ...product, shopName }, rowKey: key })}>{state?.status === "pending" ? "Adding…" : state?.status === "done" ? (state.message ? "Requested" : "Ordered") : "Order"}</button></> : null}</div>}
+            <button className="mock-buy-button" type="button" disabled={budget?.locked || state?.status === "pending" || state?.status === "done" || state?.status === "overbudget"} aria-label={`Order ${product.productName} for ${memberName}`} onClick={() => setPurchaseConfirmation({ product: { ...product, shopName }, rowKey: key })}>{state?.status === "pending" ? "Adding…" : state?.status === "done" ? (state.message ? "Requested" : "Ordered") : "Order"}</button></> : null}</div>}
           {state?.status === "done" && <StatusCard kind={state.message ? "waiting" : "ordered"} text={state.text || (state.message || "Order recorded.")} verdict={state.verdict} />}
+          {state?.status === "overbudget" && <><StatusCard kind="refused" label="Refused: above your budget" text={state.message} /><AskParentButton product={{ productRef: state.product.productRef, productUrl: state.product.productUrl || undefined }} onAsk={onAskParent} locked={budget?.locked} /></>}
           {state?.status === "error" && <StatusCard kind={errorKind(state.message)} text={state.message} />}
         </article>;
       })}</div>;
     }
     if (block.type === "list") return <ul key={index}>{block.items.map((item, itemIndex) => <li key={itemIndex}><InlineText text={item} /></li>)}</ul>;
     const vm = block.text.match(/verdict \*\*([A-Z_]+)\*\*/);
-    return <p key={index}>{vm && <VerdictBadge verdict={vm[1]} />}<InlineText text={block.text} /></p>;
+    return <p key={index}>{vm && <VerdictBadge verdict={vm[1]} />}<InlineText text={block.text} onAsk={onAskParent} locked={budget?.locked} /></p>;
   })}{purchaseConfirmation && <PurchaseModal conf={purchaseConfirmation} busy={purchaseConfirming} budget={budget} onConfirm={confirmPurchase} onCancel={cancelPurchaseConfirmation} />}</div>;
 }
 
@@ -314,14 +335,14 @@ function MemberCard({ member, me }) {
   );
 }
 
-function ChatMessage({ message, onMockPurchase, budget }) {
+function ChatMessage({ message, onMockPurchase, onAskParent, budget }) {
   const assistant = message.role === "assistant";
   return (
     <div className={`message-row ${assistant ? "assistant-row" : "user-row"}`}>
       {assistant && <div className="tiny-mark"><Ring still size={26} stroke={3.5} arcs={[{ tone: "teen", pct: 75 }, { tone: "child", pct: 55 }, { tone: "fam", pct: 35 }]} /></div>}
       <div className={`message-bubble ${assistant ? "assistant-bubble" : "user-bubble"}`}>
         {assistant && <div className="message-label">SHOPPER AGENT</div>}
-        <div className="message-copy">{assistant ? <FormattedReply content={message.content} memberName={message.memberName} onMockPurchase={onMockPurchase} budget={budget} /> : message.content}</div>
+        <div className="message-copy">{assistant ? <FormattedReply content={message.content} memberName={message.memberName} onMockPurchase={onMockPurchase} onAskParent={onAskParent} budget={budget} /> : message.content}</div>
       </div>
     </div>
   );
@@ -355,7 +376,7 @@ function Decision({ steps, finished, running, onStop, onAgain }) {
         <span className="trail-dot">{icon[s.state]}</span>
         <div className="trail-body"><strong>{s.title}</strong>{s.text && <span>{s.text}</span>}{(s.subs || []).map((x, i) => <span key={i} className="trail-sub">{x}</span>)}{s.bold && <strong className="trail-bold">{s.bold}</strong>}</div>
       </li>)}</ol>
-      {finished && <div className="trail-summary"><strong>{finished.ok ? "Story finished: 1 order approved by a parent, 1 purchase refused" : "Story stopped."}</strong>
+      {finished && <div className="trail-summary"><strong>{finished.ok ? "Story finished: 1 order decided by the trust layer, 1 order approved by a parent" : "Story stopped."}</strong>
         <small>TrustBoris is not connected in this demo: the gateway steps are simulated; the limits are enforced for real by the Family Wallet.</small></div>}
     </div>
     {running ? <button type="button" className="secondary-button" onClick={onStop}>Stop</button> : finished && <button type="button" className="mock-buy-button" onClick={onAgain}>Play again</button>}
@@ -406,6 +427,7 @@ export default function ShopperApp() {
   useEffect(() => { const q = new URLSearchParams(window.location.search).get("q"); if (q) sendMessage(q); }, []);
   const [story, setStory] = useState({ running: false, steps: [], finished: null });
   const storyAbort = useRef(false);
+  const storyRef = useRef(false);
   useEffect(() => { if (new URLSearchParams(window.location.search).get("story") === "1") setTimeout(() => playStory(), 600); }, []);
   const stepSet = (id, patch, title) => setStory((st) => {
     const exists = st.steps.some((s) => s.id === id);
@@ -413,11 +435,13 @@ export default function ShopperApp() {
     return { ...st, steps };
   });
   async function playStory() {
-    if (story.running || busy) return;
+    if (story.running || busy || storyRef.current) return;
+    storyRef.current = true;
     storyAbort.current = false;
     setStory({ running: true, steps: [], finished: null });
-    const T = { s1: "1 · Child asks", s2: "2 · idealo price comparison", s3: "3 · Child asks to buy", s4: "4 · Trust layer decides", s5: "5 · Parent decides", s6: "6 · Child asks", s7: "7 · idealo price comparison", s8: "8 · Child tries to buy anyway", s9: "9 · Trust layer decides" };
+    const T = { s1: "1 · Child asks", s2: "2 · idealo price comparison", s3: "3 · Child orders", s4: "4 · Trust layer decides", s5: "5 · Child asks", s6: "6 · idealo price comparison", s7: "7 · Child tries to order", s8: "8 · Child asks a parent", s9: "9 · Parent steps in" };
     let current = null;
+    let finished = { ok: false };
     const begin = (id, text) => { current = id; stepSet(id, { state: "running", text }, T[id]); };
     const pause = async () => { await sleep(1500); if (storyAbort.current) throw new Error("__stopped__"); };
     const as = async (id) => { accountRef.current = id; try { localStorage.setItem("familyMember", id); } catch { /* ignore */ } setAccount(id); setError(""); await sleep(300); };
@@ -441,57 +465,55 @@ export default function ShopperApp() {
     };
     const stateNow = async () => { await refreshState(); return lastState.current; };
     const childLeft = () => lastState.current?.members?.find((m) => String(m.name).toLowerCase() === "child")?.remainingEur;
+    const ID = "Identity: Child (demo sign-in — TrustBoris Agent Gateway in production)";
     try {
       setMessages([]);
       await as("child"); await refreshState();
-      // Scene 1
+      // Case 1: within the budget, the trust layer decides
       begin("s1", 'Child: "I\'d like Der Hobbit."'); await ask("Der Hobbit"); stepSet("s1", { state: "ok" }); await pause();
       begin("s2", "Comparing offers on idealo…");
-      const reply1 = conv[conv.length - 1].content; const best = parseOffers(reply1);
+      const best = parseOffers(conv[conv.length - 1].content);
       stepSet("s2", { state: "ok", text: `Compared offers on idealo — best offer highlighted${best ? `: ${best.shopName ? best.shopName + ", " : ""}${money(best.priceEur)}` : ""}` }); await pause();
-      begin("s3", "Sending the purchase request…");
+      begin("s3", "Placing the order…");
       const body = { productRef: "hobbit-pb" }; if (best?.productUrl) body.productUrl = best.productUrl;
       const buy = await post("/api/family/mock-purchases", body);
-      if (!buy.ok) throw new Error(buy.result.error || `Purchase failed (${buy.status})`);
-      stepSet("s3", { state: "ok", text: "Request sent for Der Hobbit." }); await refreshState(); await pause();
+      if (buy.status !== 201) throw new Error(buy.result.error || `Unexpected status ${buy.status}`);
+      stepSet("s3", { state: "ok", text: "Order sent for Der Hobbit." }); await pause();
       begin("s4", "");
-      stepSet("s4", { subs: ["Identity: Child (demo sign-in — TrustBoris Agent Gateway in production)"] }); await pause();
-      stepSet("s4", { subs: ["Identity: Child (demo sign-in — TrustBoris Agent Gateway in production)", "Role check: the Family Wallet refuses a direct order by a child — a child may only ask (TrustBoris tool gating in production)"] }); await pause();
-      stepSet("s4", { state: "wait", text: "Waiting for a parent", subs: ["Identity: Child (demo sign-in — TrustBoris Agent Gateway in production)", "Role check: the Family Wallet refuses a direct order by a child — a child may only ask (TrustBoris tool gating in production)", `Family Wallet: ${buy.result.message || "Request recorded."}`] }); await pause();
-      begin("s5", "Switching to Parent…");
-      await as("parent");
-      const st = await stateNow();
-      const req = (st?.pendingApprovals || [])[0];
-      if (!req?.requestId) throw new Error("No pending approval found for the parent.");
-      const ap = await post("/api/family/approve", { requestId: req.requestId });
-      if (!ap.ok) throw new Error(ap.result.error || `Approval failed (${ap.status})`);
+      stepSet("s4", { subs: [ID] }); await pause();
       await refreshState();
-      stepSet("s4", { state: "ok", text: "Passed to a parent" });
-      stepSet("s5", { state: "ok", text: `${ap.result.message || "Approved."} Ordered — counts against the child's limit and the family limit` }); await pause();
-      // Scene 2
-      await as("child"); await refreshState(); await pause();
-      begin("s6", 'Child: "I want the headphones."'); await ask("headphones"); stepSet("s6", { state: "ok" }); await pause();
-      begin("s7", "Comparing offers on idealo…");
-      stepSet("s7", { state: "ok", text: firstSentence(conv[conv.length - 1].content) }); await pause();
-      begin("s8", "Trying to buy anyway…");
-      const bad = await post("/api/family/mock-purchases", { productRef: "headphones-x1" });
-      if (bad.ok) throw new Error("Unexpected: the headphones purchase was not refused.");
-      if (bad.status !== 409 && bad.status !== 400) throw new Error(bad.result.error || `Unexpected status ${bad.status}`);
-      const errText = bad.result.error || bad.result.message || "Refused.";
-      stepSet("s8", { state: "bad", text: `Refused — ${errText}` }); await refreshState(); await pause();
-      begin("s9", "");
-      const verdict = bad.result.verdict || bad.result.reason;
-      const subs = [`Family Wallet: only ${money(childLeft())} left this month`];
-      if (verdict) subs.push(`Discount check: ${verdict}`);
-      stepSet("s9", { state: "bad", text: "", subs, bold: "Every refusal says why and how much is left." });
-      setStory((s) => ({ ...s, running: false, finished: { ok: true } }));
+      stepSet("s4", { state: "ok", text: "Ordered — no parent needed", subs: [ID, `Family Wallet: within the child's budget — ${buy.result.message || "Order recorded."}`] }); await pause();
+      // Case 2: above the budget, refused, a parent steps in
+      begin("s5", 'Child: "I want a board game."'); await ask("board game"); stepSet("s5", { state: "ok" }); await pause();
+      begin("s6", "Comparing offers on idealo…");
+      stepSet("s6", { state: "ok", text: firstSentence(conv[conv.length - 1].content) }); await pause();
+      begin("s7", "Trying to order…");
+      const bad = await post("/api/family/mock-purchases", { productRef: "boardgame-dice" });
+      if (bad.status !== 409 || !bad.result.canAskParent) throw new Error(bad.result.error || `Unexpected status ${bad.status}: the board game was not refused as expected.`);
+      stepSet("s7", { state: "bad", text: "Refused by the trust layer", subs: [bad.result.error || "Refused."] }); await refreshState(); await pause();
+      begin("s8", "Sending a request to a parent…");
+      const rq = await post("/api/family/request-approval", { productRef: "boardgame-dice" });
+      if (rq.status !== 201 || !rq.result.request?.requestId) throw new Error(rq.result.error || `Unexpected status ${rq.status}`);
+      const requestId = rq.result.request.requestId;
+      stepSet("s8", { state: "wait", text: "Waiting for a parent", subs: [rq.result.message || "Request sent."] }); await pause();
+      begin("s9", "Switching to Parent…");
+      await as("parent"); await stateNow();
+      const ap = await post("/api/family/approve", { requestId });
+      if (!ap.ok) throw new Error(ap.result.error || `Approval failed (${ap.status})`);
+      const st = await stateNow();
+      const childNow = st?.members?.find((m) => String(m.name).toLowerCase() === "child")?.remainingEur;
+      stepSet("s8", { state: "ok", text: "Passed to a parent" });
+      stepSet("s9", { state: "ok", text: ap.result.message || "Approved.", subs: [`Family Wallet: checked against the family budget — ${money(st?.family?.remainingEur)} left`, `Child's own budget: ${money(childNow)} left`], bold: "Up to the budget the trust layer decides. Above it, a parent steps in." });
+      finished = { ok: true };
     } catch (err) {
       const stopped = err.message === "__stopped__";
       if (current && !stopped) stepSet(current, { state: "bad", text: err.message });
       if (!stopped) setError(err.message);
       setBusy(false);
-      setStory((s) => ({ ...s, running: false, finished: { ok: false } }));
     }
+    try { await as("child"); await refreshState(); } catch { /* ignore */ }
+    storyRef.current = false;
+    setStory((s) => ({ ...s, running: false, finished }));
   }
   const sampleMember = members[0];
   const suggestions = ["Der Hobbit", "headphones", "coffee machine", "school backpack"];
@@ -542,7 +564,7 @@ export default function ShopperApp() {
 
   async function sendMessage(text = draft) {
     const trimmed = text.trim();
-    if (!trimmed || busy) return;
+    if (!trimmed || busy || storyRef.current) return;
     const next = [...messages, { role: "user", content: trimmed }];
     setMessages(next);
     setDraft("");
@@ -619,18 +641,30 @@ export default function ShopperApp() {
     finally { setConnecting(false); }
   }
 
+  async function askParent(product) {
+    if (storyRef.current) throw new Error("The story is running.");
+    const response = await api("/api/family/request-approval", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productRef: product.productRef, productUrl: product.productUrl }) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Could not send the request.");
+    setError("");
+    await refreshState();
+    setNotice("Sent. A parent has to decide.");
+    return result;
+  }
+
   async function recordMockPurchase(product) {
+    if (storyRef.current) throw new Error("The story is running.");
     const response = await api("/api/family/mock-purchases", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...product, memberName: undefined }),
     });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Could not record this order. Pick a cheaper offer or ask a parent.");
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) { const err = new Error(result.error || "Could not record this order. Pick a cheaper offer or ask a parent."); if (result.canAskParent) err.canAskParent = true; throw err; }
     setError("");
     await refreshState();
     const left = lastState.current?.members?.find((m) => String(m.name).toLowerCase() === accountRef.current)?.remainingEur;
-    setNotice(result?.purchase?.pendingApproval ? "Sent. A parent has to approve it." : `Done. ${money(left)} left this month.`);
+    setNotice(result?.purchase?.pendingApproval ? "Sent. A parent has to decide." : `Done. ${money(left)} left this month.`);
     return result;
   }
 
@@ -670,14 +704,15 @@ export default function ShopperApp() {
   const info = ROLE_INFO[account];
   const isParent = account === "parent";
   const teenLimit = members.find((m) => String(m.name).toLowerCase() === "teen")?.spendingLimitEur;
-  const rule = account === "teen" && teenLimit != null ? `Orders alone up to ${money(Number(teenLimit))} / month; above that a parent decides.` : info.rule;
+  const childLimit = members.find((m) => String(m.name).toLowerCase() === "child")?.spendingLimitEur;
+  const rule = account === "teen" && teenLimit != null ? `Orders alone up to ${money(Number(teenLimit))} / month; above that a parent decides.` : account === "child" && childLimit != null ? `Orders alone up to ${money(Number(childLimit))} / month; above that a parent steps in.` : info.rule;
 
   return (
     <div className={`app-shell ${story.running ? "story-running" : ""}`}>
       <header className="topbar">
         <div className="brand"><AppMark /><span>Family Shopper</span></div>
         <div className="role-switch" role="radiogroup" aria-label="Signed in as">
-          {ACCOUNTS.map((id) => <button key={id} type="button" role="radio" aria-checked={account === id} className={`role-btn ${account === id ? "active" : ""}`} onClick={() => switchAccount(id)}><span className="role-avatar" style={{ background: ROLE_INFO[id].color }}>{cap(id).slice(0, 1)}</span>{cap(id)}{id === "parent" && pendingApprovals.length > 0 && <span className="role-badge">{pendingApprovals.length} waiting</span>}</button>)}
+          {ACCOUNTS.map((id) => <button key={id} type="button" role="radio" aria-checked={account === id} className={`role-btn ${account === id ? "active" : ""}`} disabled={story.running} onClick={() => switchAccount(id)}><span className="role-avatar" style={{ background: ROLE_INFO[id].color }}>{cap(id).slice(0, 1)}</span>{cap(id)}{id === "parent" && pendingApprovals.length > 0 && <span className="role-badge">{pendingApprovals.length} waiting</span>}</button>)}
         </div>
         <div className="top-actions">
           <ThemeButton />
@@ -707,10 +742,10 @@ export default function ShopperApp() {
                 <div className="welcome-subtitle">Ask for a product. The agent compares idealo offers. The family wallet decides what fits your budget.</div>
                 <ol className="steps"><li>Choose who you are</li><li>Ask for a product</li><li>Order within your budget</li></ol>
                 <div className="suggestions">
-                  {suggestions.map((suggestion) => <button key={suggestion} type="button" className="suggestion" onClick={() => sendMessage(suggestion)}>{suggestion}<Icon name="arrow" size={15} /></button>)}
+                  {suggestions.map((suggestion) => <button key={suggestion} type="button" className="suggestion" disabled={story.running || busy} onClick={() => sendMessage(suggestion)}>{suggestion}<Icon name="arrow" size={15} /></button>)}
                 </div>
               </div>
-            ) : <div className="messages">{messages.map((message, index) => <ChatMessage key={`${index}-${message.role}`} message={message.role === "assistant" ? { ...message, memberName: cap(account) } : message} onMockPurchase={recordMockPurchase} budget={{ role: account, meLeft: me?.remainingEur, familyLeft: family?.remainingEur }} />)}{busy && <div className="message-row assistant-row" role="status"><div className="thinking"><i /><i /><i /><span>Agent is comparing offers…</span></div></div>}<div ref={endRef} /></div>}
+            ) : <div className="messages">{messages.map((message, index) => <ChatMessage key={`${index}-${message.role}`} message={message.role === "assistant" ? { ...message, memberName: cap(account) } : message} onMockPurchase={recordMockPurchase} onAskParent={askParent} budget={{ locked: story.running, role: account, meLeft: me?.remainingEur, familyLeft: family?.remainingEur }} />)}{busy && <div className="message-row assistant-row" role="status"><div className="thinking"><i /><i /><i /><span>Agent is comparing offers…</span></div></div>}<div ref={endRef} /></div>}
           </div>
 
           <div className="status-area" aria-live="polite">

@@ -25,5 +25,5 @@ members:
   - id: child
     role: child
     personal_cap: 20
-    needs_approval: true   # every order becomes an approval request to a parent
+    needs_approval: true   # informational: the wallet decides up to the child's budget; above it a parent steps in (approval checks the family cap only)
     can_approve: false

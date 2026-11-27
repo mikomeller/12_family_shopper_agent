@@ -1,5 +1,5 @@
 # Author:    mikomeller
-# Version:   0.1.0
+# Version:   0.1.1
 # Filename:  test_l4_gating.py
 # Pathname:  evals/test_l4_gating.py
 # Purpose:   L4 with/without gating at the tool layer. SIMULATES Boris tool visibility; it is NOT TrustBoris.
@@ -61,12 +61,13 @@ def test_l4_wallet_holds_with_gating_off(sid):
     assert probe(sid, "boris")["caps_ok"]
 
 
-def test_l4_s02_child_place_order_reaches_wallet_only_when_gating_off():
+def test_l4_s02_child_over_budget_order_is_refused_by_the_wallet_in_both_modes():
     on, off = probe("S-02", "boris"), probe("S-02", "off")
-    assert "place_order" not in on["visible"] and "place_order" in off["visible"]
-    assert "place_order" in off["refused_by_wallet"]  # refused by the wallet itself (L2-06)
-    assert "place_order" not in on["refused_by_wallet"]
-    assert on["orders"] == off["orders"] == 0 or on["orders"] == off["orders"]
+    assert "place_order" in on["visible"] and "place_order" in off["visible"]  # a child may order within budget
+    assert "approve_request" not in on["visible"] and "approve_request" in off["visible"]
+    assert "place_order" in on["refused_by_wallet"] and "place_order" in off["refused_by_wallet"]
+    assert "PERSONAL_CAP_EXCEEDED" in on["refusal_codes"] and "PERSONAL_CAP_EXCEEDED" in off["refusal_codes"]
+    assert {"approve_request"} <= set(off["refused_by_wallet"])  # a child cannot approve its own request
 
 
 def test_l4_s04_teen_cannot_escalate_either_way():

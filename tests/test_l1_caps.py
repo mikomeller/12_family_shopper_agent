@@ -1,5 +1,5 @@
 # Author:    mikomeller
-# Version:   0.1.0
+# Version:   0.2.0
 # Filename:  test_l1_caps.py
 # Pathname:  tests/test_l1_caps.py
 # Purpose:   L1-01..L1-13 cap logic of the Family Wallet service (deterministic, no network, no LLM)
@@ -52,43 +52,33 @@ def test_l1_04_teen_fills_family_cap_exactly(teen, ledger):
     assert ledger.spent() == 40000
 
 
-def test_l1_05_child_request_creates_no_order_no_spend(child, ledger):
-    r = dump(child.request_approval(price_cents=1000, **ORDER))
+def test_l1_05_child_within_budget_orders_directly_no_request(child, ledger):
+    r = dump(child.place_order(price_cents=1000, **ORDER))
     assert r["ok"] is True
-    assert r["status"] == "open"
     assert r["member_id"] == "child"
-    assert ledger.requests() == 1
+    assert r["remaining_personal_cents"] == 1000
+    assert ledger.orders() == 1 and ledger.requests() == 0 and ledger.spent() == 1000
+
+
+def test_l1_06_child_above_budget_refused_parent_approves(child, parent, ledger):
+    refused = dump(child.place_order(price_cents=2500, **ORDER))  # child cap 2000
+    assert refused["ok"] is False and refused["error_code"] == "PERSONAL_CAP_EXCEEDED"
+    assert ledger.state() == (0, 0, 0)
+    req = dump(child.request_approval(price_cents=2500, **ORDER))
     assert ledger.orders() == 0 and ledger.spent() == 0
-
-
-def test_l1_06_parent_approves_child_request(child, parent, ledger):
-    req = dump(child.request_approval(price_cents=1000, **ORDER))
     r = dump(parent.approve_request(request_id=req["request_id"]))
     assert r["ok"] is True
     assert r["member_id"] == "child"
     assert r["approved_by"] == "parent"
-    assert r["remaining_personal_cents"] == 1000  # counts against the child's 2000 cap (A1)
-    assert r["remaining_family_cents"] == 39000
-    assert ledger.orders() == 1 and ledger.spent() == 1000
+    assert r["remaining_personal_cents"] == 0  # counts as the child's spending, floored at 0
+    assert r["remaining_family_cents"] == 37500
+    assert ledger.orders() == 1 and ledger.spent() == 2500
     assert ledger.request_status(req["request_id"]) == "approved"
-    # the approved order counts against the child's personal cap
-    assert dump(child.check_budget(price_cents=1500))["fits"] is False
+    assert dump(child.check_budget(price_cents=1))["fits"] is False
 
 
-def test_l1_07_approve_that_no_longer_fits_stays_open(child, parent, ledger):
-    req = dump(child.request_approval(price_cents=1500, **ORDER))
-    ledger.seed_order("child", 1000)  # child spent elsewhere meanwhile; 1000 + 1500 > 2000
-    before = ledger.state()
-    r = dump(parent.approve_request(request_id=req["request_id"]))
-    assert r["ok"] is False
-    assert r["error_code"] == "PERSONAL_CAP_EXCEEDED"
-    assert r["remaining_personal_cents"] == 1000
-    assert ledger.request_status(req["request_id"]) == "open"
-    assert ledger.state() == before
-
-
-def test_l1_07b_approve_that_breaks_family_cap_stays_open(child, parent, ledger):
-    req = dump(child.request_approval(price_cents=1500, **ORDER))
+def test_l1_07_approve_that_no_longer_fits_family_cap_stays_open(child, parent, ledger):
+    req = dump(child.request_approval(price_cents=2500, **ORDER))
     ledger.seed_order("parent", 39000)
     before = ledger.state()
     r = dump(parent.approve_request(request_id=req["request_id"]))
