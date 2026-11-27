@@ -1,0 +1,23 @@
+%% Author:    mikomeller
+%% Version:   0.1.0
+%% Filename:  orchestration.mmd
+%% Pathname:  doc/diagrams/orchestration.mmd
+%% Purpose:   How a story flows from the GitHub Project board through the orchestrator, the Opus/Sonnet
+%%            subagents, the gates and the review back to the board (Claude Code, claude --agent orchestrator)
+flowchart TD
+    K[(GitHub Project<br/>Epic / Story / Task)] -->|board.py list --stage Ready| O[orchestrator<br/>plan, delegate, gate, handover]
+    O -->|design brief| A[architect - Opus<br/>contracts, diagrams, ADRs]
+    A -->|spec + diagram| O
+    O -->|build brief| D[wallet-dev - Sonnet<br/>Python implementation]
+    O -->|test brief| T[test-eval - Sonnet<br/>pytest, eval scenarios]
+    O -->|docs brief| W[docs-demo - Sonnet<br/>runbooks, demo script, pitch]
+    D --> G{L0 gates<br/>ruff, pytest, header, diagram first}
+    T --> G
+    W --> G
+    G -->|fail: output back to owner,<br/>stop after 2 rounds| O
+    G -->|pass| R[reviewer - Opus<br/>read-only, sees diff + story only]
+    R -->|changes required| O
+    R -->|approve| H[todo.md, pending.md, HANDOVER.md<br/>board.py move N Test]
+    H --> K
+    O -.->|runbook| Y[Human<br/>Boris dashboard + CLI, idealo OAuth,<br/>invitations, go/no-go, PR merge]
+    Y -.->|Demo-ready after seeing it work| K
