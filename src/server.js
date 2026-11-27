@@ -4,7 +4,7 @@ import express from "express";
 import { readFile, writeFile, rename } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { beginIdealoConnection, connectIdealoTools, finishIdealoAuthorization, getIdealoAuthStatus } from "./idealo-oauth.js";
+import { beginIdealoConnection, connectIdealoTools, finishIdealoAuthorization, getIdealoAuthStatus, resetIdealoConnection } from "./idealo-oauth.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const familyPath = path.join(root, "data", "family.json");
@@ -183,6 +183,13 @@ app.get("/api/idealo/status", async (_request, response) => {
 app.post("/api/idealo/connect", async (_request, response) => {
   try { response.json(await beginIdealoConnection()); }
   catch (error) { response.status(502).json({ error: error.message || "Could not connect to idealo." }); }
+});
+
+app.post("/api/idealo/reconnect", async (_request, response) => {
+  try {
+    await resetIdealoConnection();
+    response.json(await beginIdealoConnection());
+  } catch (error) { response.status(502).json({ error: error.message || "Could not reconnect to idealo." }); }
 });
 
 app.get("/oauth/callback", async (request, response) => {

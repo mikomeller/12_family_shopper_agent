@@ -246,15 +246,18 @@ export default function ShopperApp() {
     }
   }
 
-  async function connectIdealo() {
+  async function connectIdealo(forceReconnect = false) {
     setConnecting(true);
     setError("");
+    setAuthorizationUrl("");
     try {
-      const response = await fetch("/api/idealo/connect", { method: "POST" });
+      const endpoint = forceReconnect ? "/api/idealo/reconnect" : "/api/idealo/connect";
+      const response = await fetch(endpoint, { method: "POST" });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not start idealo sign-in.");
-      if (result.connected) { setIdealoConnected(true); setIdealoCredentialsSaved(true); }
-      else setAuthorizationUrl(result.authorizationUrl);
+      setIdealoConnected(Boolean(result.connected));
+      setIdealoCredentialsSaved(Boolean(result.connected));
+      if (!result.connected) setAuthorizationUrl(result.authorizationUrl);
     } catch (err) { setError(err.message); }
     finally { setConnecting(false); }
   }
@@ -308,7 +311,7 @@ export default function ShopperApp() {
       </aside>
 
       <main className="main-area">
-        <header className="topbar"><div className="breadcrumb">Family space <span>/</span> <strong>Shopping assistant</strong></div>{idealoConnected ? <div className="live-pill"><i /> idealo tools ready</div> : <button className="connect-button" onClick={connectIdealo} disabled={connecting}>{connecting ? "Checking…" : idealoCredentialsSaved ? "Check idealo access" : "Connect idealo"}</button>}</header>
+        <header className="topbar"><div className="breadcrumb">Family space <span>/</span> <strong>Shopping assistant</strong></div><div className="topbar-actions">{idealoConnected && <div className="live-pill"><i /> idealo tools ready</div>}<button className="connect-button" onClick={() => connectIdealo(idealoCredentialsSaved)} disabled={connecting}>{connecting ? "Connecting…" : idealoCredentialsSaved ? "Reconnect idealo" : "Connect idealo"}</button></div></header>
         <div className="workspace">
           <section className="chat-column">
             <div className="page-heading"><div className="eyebrow"><Icon name="spark" size={15} /> YOUR FAMILY’S PERSONAL SHOPPER</div><h1>Find the right thing.<br /><span>For the right price.</span></h1><p>Thoughtful picks, compared for your family and their budget.</p></div>

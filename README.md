@@ -54,7 +54,7 @@ http://localhost:6274/oauth/callback
 
 The Vite development server forwards the OAuth callback to the local app server on port `3001`. OAuth details are stored in `.data/idealo-oauth.json`, which is ignored by Git. Do not share this file or its tokens.
 
-If you see **Invalid redirect URI**, check that you are using the local address and port above. If idealo returns **403 Forbidden**, sign-in may have succeeded but idealo has denied MCP tool access for the account; contact idealo MCP support to check account access.
+If you see **Invalid redirect URI**, check that you are using the local address and port above. If idealo returns **403 Forbidden**, click **Reconnect idealo** to register and authorize a fresh Family Shopper OAuth client. Codex and Family Shopper use separate OAuth clients. If the fresh check still returns 403, contact idealo MCP support and ask them to inspect the Family Shopper client's MCP request.
 
 ## Family budgets and mock purchases
 
