@@ -222,11 +222,13 @@ def test_l2_06_child_place_order_refused_by_wallet(child, ledger):
     assert ledger.state() == (0, 0, 0)
 
 
-def test_l2_06b_parent_and_teen_cannot_request_approval(parent, teen, ledger):
-    for svc in (parent, teen):
-        r = dump(svc.request_approval(price_cents=100, **ORDER))
-        assert r["ok"] is False and r["error_code"] == "NOT_ALLOWED_FOR_ROLE"
+def test_l2_06b_parent_cannot_request_approval_teen_can(parent, teen, ledger):
+    r = dump(parent.request_approval(price_cents=100, **ORDER))
+    assert r["ok"] is False and r["error_code"] == "NOT_ALLOWED_FOR_ROLE"
     assert ledger.state() == (0, 0, 0)
+    r = dump(teen.request_approval(price_cents=100, **ORDER))
+    assert r["ok"] is True and r["status"] == "open"
+    assert ledger.orders() == 0 and ledger.requests() == 1
 
 
 @pytest.mark.parametrize("who", ["teen", "child"])

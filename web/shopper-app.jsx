@@ -1,6 +1,6 @@
 /*
 Author:    rodrigo, mikomeller, rhaveen-sa
-Version:   0.2.1
+Version:   0.2.2
 Filename:  shopper-app.jsx
 Pathname:  web/shopper-app.jsx
 Purpose:   React UI of the Family Shopper web app: account switcher, chat with the shopping agent, offers, budgets as spending rings,
@@ -172,7 +172,7 @@ function VerdictBadge({ verdict }) {
 }
 const ROLE_INFO = {
   parent: { label: "Parent", rule: "Approves requests. No personal limit.", color: "var(--role-parent)" },
-  teen: { label: "Teen", rule: "Orders alone up to the personal monthly limit.", color: "var(--role-teen)" },
+  teen: { label: "Teen", rule: "Orders alone up to its monthly limit; above that a parent steps in.", color: "var(--role-teen)" },
   child: { label: "Child", rule: "Orders alone up to its monthly limit; above that a parent steps in.", color: "var(--role-child)" },
 };
 
@@ -705,7 +705,7 @@ export default function ShopperApp() {
   const isParent = account === "parent";
   const teenLimit = members.find((m) => String(m.name).toLowerCase() === "teen")?.spendingLimitEur;
   const childLimit = members.find((m) => String(m.name).toLowerCase() === "child")?.spendingLimitEur;
-  const rule = account === "teen" && teenLimit != null ? `Orders alone up to ${money(Number(teenLimit))} / month; above that a parent decides.` : account === "child" && childLimit != null ? `Orders alone up to ${money(Number(childLimit))} / month; above that a parent steps in.` : info.rule;
+  const rule = account === "teen" && teenLimit != null ? `Orders alone up to ${money(Number(teenLimit))} / month; above that a parent steps in.` : account === "child" && childLimit != null ? `Orders alone up to ${money(Number(childLimit))} / month; above that a parent steps in.` : info.rule;
 
   return (
     <div className={`app-shell ${story.running ? "story-running" : ""}`}>

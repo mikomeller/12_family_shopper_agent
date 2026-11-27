@@ -1,6 +1,6 @@
 """
 Author:    mikomeller
-Version:   0.2.0
+Version:   0.2.1
 Filename:  service.py
 Pathname:  src/family_shopper/wallet/service.py
 Purpose:   WalletService: one method per tool, caps and roles, BEGIN IMMEDIATE writes; no MCP imports
@@ -23,6 +23,7 @@ from family_shopper.wallet.identity import IdentityInvalid, IdentityMissing, Ide
 Clock = Callable[[], datetime]
 BERLIN = ZoneInfo("Europe/Berlin")
 MAX_TEXT = 500
+ASK_ROLES = ("child", "teen")  # roles that can ask a parent to step in above their own budget
 INTERNAL = "The wallet could not complete the request; nothing was changed."
 
 
@@ -215,7 +216,7 @@ class WalletService:
     ) -> dict[str, Any]:
         s = self._state(conn, month, member_id)
         if personal and s["p_cap"] is not None and s["p_spent"] + price > s["p_cap"]:
-            hint = " A parent can step in: use request_approval." if s["role"] == "child" else ""
+            hint = " A parent can step in: use request_approval." if s["role"] in ASK_ROLES else ""
             raise Refuse(
                 "PERSONAL_CAP_EXCEEDED",
                 f"This exceeds {member_id}'s monthly limit; {fmt_eur(s['p_rem'])} left this month.{hint}",
@@ -288,7 +289,7 @@ class WalletService:
             if price_cents is not None:
                 fits = (s["p_rem"] is None or price_cents <= s["p_rem"]) and price_cents <= s["f_rem"]
             needs_approval = (
-                caller.role == "child"
+                caller.role in ASK_ROLES
                 and price_cents is not None
                 and s["p_rem"] is not None
                 and price_cents > s["p_rem"]
@@ -338,7 +339,7 @@ class WalletService:
     def request_approval(self, product_name: str, shop: str, deep_link: str, price_cents: int) -> BaseModel:
         def body(conn: sqlite3.Connection, caller: Member, month: str) -> BaseModel:
             name, shp, link, price = _order_fields((product_name, shop, deep_link, price_cents))
-            if caller.role != "child":
+            if caller.role not in ASK_ROLES:
                 raise Refuse("NOT_ALLOWED_FOR_ROLE", f"{caller.id} can order directly; use place_order.")
             conn.execute("BEGIN IMMEDIATE")
             cur = conn.execute(
@@ -371,6 +372,8 @@ class WalletService:
                 raise Refuse("REQUEST_NOT_FOUND", f"Approval request {request_id} does not exist.")
             if req["status"] != "open":
                 raise Refuse("REQUEST_NOT_OPEN", f"Approval request {request_id} is already {req['status']}.")
+            # Approved by a parent (checked above): family cap only, whatever the requester's role.
+            # The order still counts as the requester's spending (remaining is floored at 0).
             self._check_caps(conn, month, req["member_id"], req["price_cents"], personal=False)
             oid = self._insert_order(
                 conn, req["member_id"], caller.id, request_id, req["product_name"], req["shop"],

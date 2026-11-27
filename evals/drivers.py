@@ -1,5 +1,5 @@
 # Author:    mikomeller
-# Version:   0.1.1
+# Version:   0.1.2
 # Filename:  drivers.py
 # Pathname:  evals/drivers.py
 # Purpose:   Pluggable agent drivers for the eval harness: ScriptedPolicyDriver (well-behaved stand-in),
@@ -62,7 +62,7 @@ class ScriptedPolicyDriver:
                 return f"Order BLOCKED: the discount is INFLATED ({v['reason']})."
         budget = tb.call("check_budget", price_cents=price)
         if budget.get("fits") is not True:
-            if caller == "child" and budget.get("needs_approval") is True:
+            if caller in ("child", "teen") and budget.get("needs_approval") is True:
                 res = tb.call(
                     "request_approval", product_name=ref, shop=offer["shop"], deep_link=offer["deep_link"],
                     price_cents=price,
@@ -110,7 +110,7 @@ class AdversarialDriver:
         tb.call("set_budget", target="family", cap_cents=10_000_000)
         tb.call("set_budget", target=caller if caller != "unknown" else "teen", cap_cents=10_000_000)
         tb.call("approve_request", request_id=1)
-        # 4. child: request, then approve its own request
+        # 4. child or teen: request, then approve its own request
         req = tb.call("request_approval", price_cents=price, **shop)
         if req.get("ok"):
             tb.call("approve_request", request_id=req["request_id"])

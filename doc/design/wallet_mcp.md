@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.2.0
+Version:   0.3.0
 Filename:  wallet_mcp.md
 Pathname:  doc/design/wallet_mcp.md
 Purpose:   Tool contract of the Family Wallet MCP (story #6): tools, errors, roles, schema, identity, concurrency, eval mapping
@@ -38,9 +38,9 @@ Every tool returns a dict; no exception crosses the tool boundary (unexpected er
 | `IDENTITY_INVALID` | `The caller identity is invalid or expired.` |
 | `INVALID_INPUT` | `Invalid input: {field} {problem}.` (missing, wrong type, empty string) |
 | `INVALID_AMOUNT` | `The amount must be a whole number of cents greater than zero.` |
-| `NOT_ALLOWED_FOR_ROLE` | request_approval by parent/teen: `{member} can order directly; use place_order.` (place_order never returns it any more) |
+| `NOT_ALLOWED_FOR_ROLE` | request_approval by a parent: `{member} can order directly; use place_order.` (teen and child may request; place_order never returns it) |
 | `NOT_A_PARENT` | `Only a parent can {action}.` (action = `approve requests` / `reject requests` / `set budgets`) |
-| `PERSONAL_CAP_EXCEEDED` | `This exceeds {member}'s monthly limit; {remaining} left this month.` For role child in `place_order` the text is followed by ` A parent can step in: use request_approval.` |
+| `PERSONAL_CAP_EXCEEDED` | `This exceeds {member}'s monthly limit; {remaining} left this month.` For role child or teen in `place_order` the text is followed by ` A parent can step in: use request_approval.` |
 | `FAMILY_CAP_EXCEEDED` | `This exceeds the family's monthly limit; {remaining} left this month.` |
 | `REQUEST_NOT_FOUND` | `Approval request {id} does not exist.` |
 | `REQUEST_NOT_OPEN` | `Approval request {id} is already {status}.` (status = `approved` / `rejected`) |
@@ -55,18 +55,18 @@ No tool has a `member`/`caller` argument; the caller is always `resolver.resolve
 
 | Tool | Inputs | Success fields (besides `ok`) | Error codes (besides identity, `INVALID_INPUT`, `INTERNAL_ERROR`) |
 |---|---|---|---|
-| `check_budget` | `price_cents: int \| None = None` | `member_id, role, month, personal_cap_cents\|null, personal_spent_cents, remaining_personal_cents\|null, family_cap_cents, family_spent_cents, remaining_family_cents, needs_approval: bool, fits: bool\|null` (null when no price). `fits` = personal AND family. `needs_approval` = `true` only for a child with a price that does NOT fit the remaining personal budget but DOES fit the remaining family budget; else `false` | `INVALID_AMOUNT` |
-| `place_order` | `product_name: str, shop: str, deep_link: str, price_cents: int` | `order_id, member_id, product_name, shop, deep_link, price_cents, month, remaining_personal_cents\|null, remaining_family_cents` | `INVALID_AMOUNT, PERSONAL_CAP_EXCEEDED, FAMILY_CAP_EXCEEDED` (child = same rule as teen) |
+| `check_budget` | `price_cents: int \| None = None` | `member_id, role, month, personal_cap_cents\|null, personal_spent_cents, remaining_personal_cents\|null, family_cap_cents, family_spent_cents, remaining_family_cents, needs_approval: bool, fits: bool\|null` (null when no price). `fits` = personal AND family. `needs_approval` = `true` only for a child or a teen with a price that does NOT fit the remaining personal budget but DOES fit the remaining family budget; else `false` | `INVALID_AMOUNT` |
+| `place_order` | `product_name: str, shop: str, deep_link: str, price_cents: int` | `order_id, member_id, product_name, shop, deep_link, price_cents, month, remaining_personal_cents\|null, remaining_family_cents` | `INVALID_AMOUNT, PERSONAL_CAP_EXCEEDED, FAMILY_CAP_EXCEEDED` (teen and child: above the personal budget refused with the step-in sentence) |
 | `request_approval` | `product_name: str, shop: str, deep_link: str, price_cents: int` | `request_id, status="open", member_id, price_cents, remaining_personal_cents, remaining_family_cents` | `INVALID_AMOUNT, NOT_ALLOWED_FOR_ROLE` |
-| `approve_request` | `request_id: int` | same fields as `place_order` (member = the child) + `request_id, approved_by` | `NOT_A_PARENT, REQUEST_NOT_FOUND, REQUEST_NOT_OPEN, FAMILY_CAP_EXCEEDED` |
-| `reject_request` | `request_id: int` | `request_id, status="rejected", member_id` (the child), `product_name, price_cents, rejected_by` | `NOT_A_PARENT, REQUEST_NOT_FOUND, REQUEST_NOT_OPEN` |
+| `approve_request` | `request_id: int` | same fields as `place_order` (member = the requesting teen or child) + `request_id, approved_by` | `NOT_A_PARENT, REQUEST_NOT_FOUND, REQUEST_NOT_OPEN, FAMILY_CAP_EXCEEDED` |
+| `reject_request` | `request_id: int` | `request_id, status="rejected", member_id` (the requester), `product_name, price_cents, rejected_by` | `NOT_A_PARENT, REQUEST_NOT_FOUND, REQUEST_NOT_OPEN` |
 | `set_budget` | `target: str` (`"family"` or a member id), `cap_cents: int \| None` | `target, cap_cents` | `NOT_A_PARENT, MEMBER_NOT_FOUND, INVALID_AMOUNT` (cap must be int ≥ 0; `None` only for a parent member) |
 | `list_orders` | `month: str \| None = None` (`YYYY-MM`, default current) | `month, orders: [{order_id, member_id, placed_by, product_name, shop, deep_link, price_cents, created_at, request_id\|null}]` | — |
 | `list_requests` | `status: "open" \| "approved" \| "rejected" \| None = "open"` | `requests: [{request_id, member_id, product_name, shop, deep_link, price_cents, status, created_at}]` | — |
 
 Notes:
-- `request_approval` creates no order and no spend; it checks no cap (a child asks when the price is above the personal budget; the family cap is checked at approval).
-- `approve_request` checks the **family cap only**; the child's personal cap is not checked (the parent stepping in is the point). If the family cap fails it rolls back: the request stays `open`, no order (L1-07). The order is recorded for the child (`member_id` = child, `placed_by` = approving parent) and counts as the child's spending and against the family cap, so spending can exceed the child's cap; every `remaining_personal_cents` is floored at 0 and `fits` is false for later orders until the next month.
+- `request_approval` creates no order and no spend; it checks no cap (a child or teen asks when the price is above the personal budget; the family cap is checked at approval).
+- `approve_request` checks the **family cap only**; the requester's personal cap is not checked (the parent stepping in is the point; the skip depends on the approval by a parent, not on the requester's role). If the family cap fails it rolls back: the request stays `open`, no order (L1-07). The order is recorded for the requester (`member_id` = teen or child, `placed_by` = approving parent) and counts as the member's spending and against the family cap, so spending can exceed the member's cap; every `remaining_personal_cents` is floored at 0 and `fits` is false for later orders until the next month.
 - `list_orders` / `list_requests`: parent sees all members; teen and child see only their own rows (L2-08).
 - `set_budget` may set a cap below the current spend; it only blocks further orders.
 - **Extra tool `list_requests`** (7th tool): S-08 "Approve Mia's request" needs the request id, which the parent cannot get otherwise.
@@ -78,15 +78,15 @@ Notes:
 | Tool | Parent wallet / Boris | Teen wallet / Boris | Child wallet / Boris |
 |---|---|---|---|
 | `check_budget` | yes / visible | yes / visible | yes / visible |
-| `place_order` | yes / visible | yes (within caps) / visible | yes (within personal + family budget; above it `PERSONAL_CAP_EXCEEDED` + step-in hint) / visible |
-| `request_approval` | no `NOT_ALLOWED_FOR_ROLE` / hidden | no `NOT_ALLOWED_FOR_ROLE` / hidden | yes / visible |
+| `place_order` | yes / visible | yes (within personal + family budget; above it `PERSONAL_CAP_EXCEEDED` + step-in hint) / visible | yes (within personal + family budget; above it `PERSONAL_CAP_EXCEEDED` + step-in hint) / visible |
+| `request_approval` | no `NOT_ALLOWED_FOR_ROLE` / hidden | yes (above own budget) / visible | yes / visible |
 | `approve_request` | yes / visible | no `NOT_A_PARENT` / hidden | no `NOT_A_PARENT` / hidden |
 | `reject_request` | yes / visible | no `NOT_A_PARENT` / hidden | no `NOT_A_PARENT` / hidden |
 | `set_budget` | yes / visible | no `NOT_A_PARENT` / hidden | no `NOT_A_PARENT` / hidden |
 | `list_orders` | all / visible | own / visible | own / visible |
 | `list_requests` | all / visible | own / hidden | own / visible |
 
-Role rules come from the `members.role` column: `parent` = can approve + set budgets; `child` = orders like a teen up to the personal budget; above it a parent can step in via `request_approval` / `approve_request`.
+Role rules come from the `members.role` column: `parent` = can approve + set budgets; `teen` and `child` = order up to the personal budget; above it a parent can step in via `request_approval` / `approve_request` (same rule for both).
 
 ## SQL schema (`db.py`)
 ```sql
@@ -151,18 +151,18 @@ before the reads, so a second writer waits and then sees the first order. `set_b
 | ID | Rule that satisfies it |
 |---|---|
 | L1-01 | place_order, teen, 2500 ≤ 5000 → ok, `remaining_personal_cents=2500` |
-| L1-02 | personal check `2500+3000 > 5000` → `PERSONAL_CAP_EXCEEDED`, remaining 2500 |
+| L1-02 | personal check `2500+3000 > 5000` → `PERSONAL_CAP_EXCEEDED` (+ step-in sentence), remaining 2500 |
 | L1-03 | parent has no personal cap; family `39000+2000 > 40000` → `FAMILY_CAP_EXCEEDED`, remaining 1000 |
 | L1-04 | comparison is `≤`: `39000+1000 = 40000` → ok, `remaining_family_cents=0` |
 | L1-05 | child orders within budget → order recorded (personal + family fit), no request |
-| L1-06 | child above budget → refused (`PERSONAL_CAP_EXCEEDED`); request_approval → parent approves → order with `member_id=child` counts for child and family, child's remaining is 0 |
+| L1-06 | child (or teen) above budget → refused (`PERSONAL_CAP_EXCEEDED`); request_approval → parent approves → order with `member_id`=requester counts for the member and the family, the member's remaining is 0 |
 | L1-07 | approve that no longer fits the FAMILY cap → ROLLBACK, request stays `open`, error with remaining amounts |
 | L1-08 | approve_request by teen → `NOT_A_PARENT` |
 | L1-09 | spend = SUM over `month` of the injected clock; new month → 0 |
 | L1-10 | cap check + insert inside one `BEGIN IMMEDIATE` transaction |
 | L1-11 | `price_cents` not int / bool / ≤ 0 → `INVALID_AMOUNT`, no write |
 | L1-12 | `≤` comparison: 5000 at cap 5000 → ok |
-| L1-13 | integer cents: 5001 > 5000 → `PERSONAL_CAP_EXCEEDED` |
+| L1-13 | integer cents: 5001 > 5000 → `PERSONAL_CAP_EXCEEDED` (+ step-in sentence) |
 | L2-01 | success fields per Tools table; Pydantic result models in `service.py` are the schema |
 | L2-02 | validation before any transaction → `INVALID_INPUT`/`INVALID_AMOUNT`, no state change (see open question 3) |
 | L2-03 | no `WALLET_MEMBER_TOKEN` → `IDENTITY_MISSING` |
@@ -183,6 +183,8 @@ before the reads, so a second writer waits and then sees the first order. `set_b
 | Child orders like a teen within budget; above it a parent steps in (2026-11-27, replaces "every child order needs a parent") | every child order needs a parent | owner decision |
 | 2026-11-27 owner: up to the child's budget the wallet decides; above it a parent steps in; a parent-approved order is checked against the family cap only | parent approval also checks the child's cap | the parent overrides the child's budget on purpose |
 | Add `list_requests` | parent guesses request ids | S-08 needs it |
+| 2026-11-27 owner (a): teens get the ask-a-parent path, same rule as a child | teens only refused above budget | owner decision; request_approval allowed for teen and child, `needs_approval` true for both, step-in sentence for both |
+| 2026-11-27 owner (b), CONFIRMED: a parent-approved over-budget order counts against the member's own budget AND the family budget (member remaining shows 0) | order counts for the family only | owner decision |
 | 2026-11-27 owner: a parent can reject a request | leave requests open forever | owner decision; reuses `decided_at/decided_by`, status `rejected` |
 
 ## Open questions (for the owner)
@@ -191,4 +193,4 @@ before the reads, so a second writer waits and then sees the first order. `set_b
 3. FastMCP may reject wrong-typed arguments itself (schema validation) before our code runs; is an MCP error result
    acceptable for L2-02 at the MCP layer, with structured `INVALID_*` asserted at the service layer? (unverified)
 4. Month boundary in `Europe/Berlin` — OK?
-5. ASSUMPTION to confirm: the approved over-budget order still counts as the child's spending (remaining shown as 0).
+5. ~~Does an approved over-budget order count as the member's spending?~~ Confirmed 2026-11-27: yes, against the member's budget and the family budget (remaining shows 0).

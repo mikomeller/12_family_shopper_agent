@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller, rhaveen-sa
-Version:   0.1.4
+Version:   0.1.5
 Filename:  demo_script.md
 Pathname:  doc/demo/demo_script.md
 Purpose:   Presenter script for the 3 minute pitch: timeline, five live steps in the browser, fallback,
@@ -34,7 +34,7 @@ for example `http://localhost:6274/?as=teen&q=Der%20Hobbit`. It is a demo sign-i
 | Step | Sign in as | Do | Audience sees | Fallback scene in `demo.py` |
 |---|---|---|---|---|
 | 1 | Teen | Ask for "Der Hobbit". Buy the cheapest offer. | Order for 10.99 €. No parent asked. 39.01 € left. | 1 |
-| 2 | Teen | Ask for the "PadPro Wireless Controller" (59.99 €). | It does not fit. The agent says 39.01 € are left this month. If you press Buy, the wallet refuses. | 2 (uses the 299 € headphones) |
+| 2 | Teen | Ask for the "PadPro Wireless Controller" (59.99 €). | It does not fit. The agent says 39.01 € are left this month. If you press Buy, the wallet refuses and says a parent can step in. Then ask a parent for the "BrewPro" coffee machine (79.99 €): refused, request sent; sign in as parent and approve; the teen has 0 € left and the family limit is reduced by 79.99 €. | 2 (uses the 299 € headphones, then the 79.99 € coffee machine with a parent's approval) |
 | 3 | Child | Ask for "Der Hobbit". Buy it. Then ask for the "Wuerfelwald" board game (30.98 €) and press Buy. | The book is ordered at once, no parent asked (9.01 € left). The board game is refused: "9.01 € left this month. A parent can step in: use request_approval." The child sends a request; no money moves. | 3 |
 | 4 | Parent | Open the requests. Approve the board game. Reject a second request if you made one. | The game counts against the child's limit (0 € left) and the family limit. A rejected request never becomes an order. | 3 |
 | 5 | Parent | Ask for the "SoundMax X1" headphones (299 €, "was 449 €"). Press Buy. | Blocked: the discount claim is 33 %, the real discount is 3.5 %. | 4 |
@@ -49,7 +49,7 @@ HTTP smoke tests: `node scripts/ui_wallet_smoke.mjs` (32 steps) and `node script
 ## If the browser fails
 Run `PYTHONPATH=src uv run python scripts/demo.py`. It is offline and uses the real wallet and the idealo mock, with no LLM and no Boris. It ends with `DEMO OK: 5/5 scenes`.
 Say: "This is the same wallet, driven by a script instead of the agent."
-Scene 5 of the script also shows a forged caller refused (`IDENTITY_INVALID`) and an injected product text that leads to zero orders.
+Scene 2 also shows the teen asking a parent for the coffee machine; the teen cannot approve his own request. Scene 5 of the script also shows a forged caller refused (`IDENTITY_INVALID`) and an injected product text that leads to zero orders.
 
 Checked on 2026-11-27 on branch `rhaveen-sa`: `uv run pytest -q` gives 152 passed, 13 skipped. `scripts/demo.py` gives `DEMO OK: 5/5 scenes`.
 

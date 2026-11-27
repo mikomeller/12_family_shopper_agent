@@ -1,5 +1,5 @@
 // Author:    mikomeller
-// Version:   0.1.6
+// Version:   0.1.7
 // Filename:  ui_wallet_smoke.mjs
 // Pathname:  scripts/ui_wallet_smoke.mjs
 // Purpose:   Smoke test of the Node UI server (offline mode, no OpenAI key) against the Family Wallet; start the server with a fresh WALLET_DB
@@ -55,8 +55,9 @@ const ok = await buy("teen", { productName: cheapest?.[1] || "Der Hobbit", price
 check("teen buys the cheapest Hobbit offer", ok.status === 201 && ok.body.ok === true, ok.body.message || ok.body.error);
 
 const HP = { productRef: "headphones-x1", productUrl: "https://shop-a.example/x1" };
+const ordersBeforeBig = await orderCount();
 const big = await buy("teen", { productRef: "coffee-genuine", priceEur: 79.99 });
-check("teen coffee machine 79.99 EUR refused (monthly limit)", big.status === 400 && /monthly limit/i.test(big.body.error || ""), big.body.error);
+check("teen coffee machine 79.99 EUR above own budget -> 409 canAskParent, nothing recorded", big.status === 409 && big.body.canAskParent === true && (await orderCount()) === ordersBeforeBig, JSON.stringify(big.body));
 
 const spoof = await buy("teen", { memberName: "parent", productRef: "hobbit-pb", priceEur: 10.99 });
 check("header teen + body memberName parent is 403", spoof.status === 403, spoof.body.error);
@@ -113,8 +114,11 @@ const ra1 = await call("POST", "/api/family/request-approval", BG, "child");
 check("child request-approval -> 201 with requestId", ra1.status === 201 && ra1.body.ok === true && Number.isInteger(ra1.body.request?.requestId) && /Nothing is spent until a parent approves/.test(ra1.body.message || ""), JSON.stringify(ra1.body));
 const ra2 = await call("POST", "/api/family/request-approval", BG, "child");
 check("second child request-approval -> 201", ra2.status === 201, JSON.stringify(ra2.body));
-const taRa = await call("POST", "/api/family/request-approval", BG, "teen");
-check("teen request-approval -> 403 (role not allowed)", taRa.status === 403 && taRa.body.error_code === "NOT_ALLOWED_FOR_ROLE", JSON.stringify(taRa.body));
+const CM = { productRef: "coffee-genuine", productUrl: "https://shop-a.example/coffee" };
+const taRa = await call("POST", "/api/family/request-approval", CM, "teen");
+check("teen request-approval for the coffee machine -> 201", taRa.status === 201 && taRa.body.ok === true && Number.isInteger(taRa.body.request?.requestId), JSON.stringify(taRa.body));
+const pRa = await call("POST", "/api/family/request-approval", CM, "parent");
+check("parent request-approval -> 403 (role not allowed)", pRa.status === 403 && pRa.body.error_code === "NOT_ALLOWED_FOR_ROLE", JSON.stringify(pRa.body));
 const hpRa = await call("POST", "/api/family/request-approval", { productRef: "headphones-x1", productUrl: HP.productUrl }, "child");
 check("headphones via request-approval (child) -> 409 INFLATED", hpRa.status === 409 && hpRa.body.verdict === "INFLATED", hpRa.body.error);
 const hpRaP = await call("POST", "/api/family/request-approval", { productRef: "headphones-x1", productUrl: HP.productUrl }, "parent");
@@ -149,6 +153,16 @@ const appr = await call("POST", "/api/family/approve", { requestId: req2?.reques
 check("parent approves the over-budget request -> order recorded", appr.status === 200 && appr.body.ok === true && (await orderCount()) === ordersBeforeAppr + 1, appr.body.message || appr.body.error);
 check("child's remaining shows 0 (not negative)", (await childLeft()) === 0, String(await childLeft()));
 check("family total went up by the order", (await famSpent()) > famBefore, `${famBefore} -> ${await famSpent()}`);
+
+const teenReq = (await call("GET", "/api/state", null, "parent")).body.pendingApprovals?.find((r) => r.member === "Teen");
+const teenLeft = async () => (await call("GET", "/api/state", null, "teen")).body.members?.[0]?.remainingEur;
+const famBeforeT = await famSpent();
+const ordersBeforeT = await orderCount();
+const apprT = await call("POST", "/api/family/approve", { requestId: teenReq?.requestId }, "parent");
+check("parent approves the teen's request -> order recorded", apprT.status === 200 && apprT.body.ok === true && (await orderCount()) === ordersBeforeT + 1, apprT.body.message || apprT.body.error);
+check("teen's remaining shows 0 (not negative), family reduced", (await teenLeft()) === 0 && (await famSpent()) > famBeforeT, `${await teenLeft()}, ${famBeforeT} -> ${await famSpent()}`);
+const tSmall = await buy("teen", { productRef: "hobbit-pb", priceEur: 10.99 });
+check("further small teen purchase refused (budget used up)", tSmall.status !== 201 && tSmall.body.ok !== true, JSON.stringify(tSmall.body));
 
 const add = await call("POST", "/api/family/members", { name: "Mallory", spendingLimitEur: 99999 }, "parent");
 check("POST /api/family/members is 403", add.status === 403, add.body.error);

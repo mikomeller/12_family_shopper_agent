@@ -1,5 +1,5 @@
 // Author:    mikomeller
-// Version:   0.1.2
+// Version:   0.1.3
 // Filename:  offline_agent_budget_check.mjs
 // Pathname:  scripts/offline_agent_budget_check.mjs
 // Purpose:   Checks that the offline responder only offers what the wallet says fits the signed-in member (no HTTP server needed)
@@ -40,6 +40,11 @@ try {
     !hasRow(g, "Wuerfelwald") && /a parent can step in: .* at € [\d,]+\. \[Ask a parent\]\(https?:\/\/[^)]*#ref=boardgame-dice&ask=1\)/.test(g) && !/^\|.*ask=1/m.test(g), g.split("\n").slice(0, 3).join(" / "));
   const gt = await ask("teen", "Familienspiel");
   check("teen + Familienspiel: no ask link", !/&ask=1/.test(gt));
+  const cm = await ask("teen", "coffee machine");
+  check("teen + coffee machine: no buyable row, 'a parent can step in' line with &ask=1 link",
+    !hasRow(cm, "BrewPro") && /a parent can step in: .* at € [\d,]+\. \[Ask a parent\]\(https?:\/\/[^)]*#ref=coffee-genuine&ask=1\)/.test(cm), cm.split("\n").slice(0, 3).join(" / "));
+  const hpT = await ask("teen", "headphones");
+  check("teen + headphones (INFLATED): not offered, no ask link", !hasRow(hpT, "SoundMax") && !/&ask=1/.test(hpT));
   // reduce teen's remaining budget with real orders
   for (let i = 0; i < 20; i++) {
     const b = await callWallet("teen", "check_budget");

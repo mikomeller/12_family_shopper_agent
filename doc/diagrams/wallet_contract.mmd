@@ -1,5 +1,5 @@
 %% Author:    mikomeller
-%% Version:   0.2.0
+%% Version:   0.3.0
 %% Filename:  wallet_contract.mmd
 %% Pathname:  doc/diagrams/wallet_contract.mmd
 %% Purpose:   Family Wallet MCP contract: data model and the place_order / request_approval / approve_request
@@ -26,7 +26,7 @@ flowchart TB
     TOOL -->|place_order| PO{"caller role"}
     PO -->|"parent, teen or child"| TX1
 
-    TOOL -->|request_approval| RA{"caller role = child?"}
+    TOOL -->|request_approval| RA{"caller role = child or teen?"}
     RA -->|no| E4b[/NOT_ALLOWED_FOR_ROLE<br/>use place_order/]
     RA -->|yes| INSREQ["INSERT approval_requests status=open<br/>no order, no spend"]
 
@@ -45,9 +45,9 @@ flowchart TB
       TX4 -->|open| REJ["UPDATE request status=rejected, decided_by, decided_at<br/>no order, no spend"]
       TX2["load request: exists? status = open?"] -->|missing| E6[/REQUEST_NOT_FOUND/]
       TX2 -->|not open| E7[/REQUEST_NOT_OPEN/]
-      TX2 -->|open| TX3["spend for the family only (parent steps in)"] --> FCAP
+      TX2 -->|open| TX3["family spend only (a parent approves; counts for the requester and the family)"] --> FCAP
       CAP{"personal_spend + price ≤ personal cap?<br/>family_spend + price ≤ family cap?"}
-      CAP -->|personal no| E8[/PERSONAL_CAP_EXCEEDED<br/>child: A parent can step in, use request_approval/]
+      CAP -->|personal no| E8[/PERSONAL_CAP_EXCEEDED<br/>teen or child: A parent can step in, use request_approval/]
       CAP -->|family no| E9[/FAMILY_CAP_EXCEEDED<br/>ROLLBACK; a request stays open/]
       FCAP{"family_spend + price ≤ family cap?"}
       FCAP -->|no| E9

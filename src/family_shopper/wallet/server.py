@@ -61,7 +61,7 @@ def place_order(product_name: str, shop: str, deep_link: str, price_cents: int) 
 
 @mcp.tool()
 def request_approval(product_name: str, shop: str, deep_link: str, price_cents: int) -> dict:
-    """Child only: ask a parent to step in when an order is above the child's budget."""
+    """Child or teen: ask a parent to step in when an order is above your own budget."""
     return service().request_approval(product_name, shop, deep_link, price_cents).model_dump()
 
 
