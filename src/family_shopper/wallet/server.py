@@ -1,6 +1,6 @@
 """
 Author:    mikomeller
-Version:   0.1.1
+Version:   0.1.2
 Filename:  server.py
 Pathname:  src/family_shopper/wallet/server.py
 Purpose:   Family Wallet MCP stdio server: thin wrapper, one line per tool calling WalletService
@@ -8,13 +8,29 @@ Purpose:   Family Wallet MCP stdio server: thin wrapper, one line per tool calli
 
 from __future__ import annotations
 
+import os
+
+from mcp.server.context import ServerRequestContext
 from mcp.server.mcpserver import MCPServer
 
 from family_shopper.wallet import db
-from family_shopper.wallet.identity import TokenResolver
+from family_shopper.wallet.identity import BorisResolver, TokenResolver, request_meta
 from family_shopper.wallet.service import WalletService
 
-mcp = MCPServer("family-wallet")
+
+def _resolver(path: str | os.PathLike[str]) -> TokenResolver | BorisResolver:
+    if os.environ.get("WALLET_IDENTITY_RESOLVER", "token") == "boris":
+        return BorisResolver(path)
+    return TokenResolver(path)
+
+
+async def _publish_request_meta(ctx: ServerRequestContext, call_next):
+    """Publish the inbound request's `_meta` so BorisResolver can read the verified caller identity."""
+    with request_meta(ctx.meta):
+        return await call_next(ctx)
+
+
+mcp = MCPServer("family-wallet", middleware=[_publish_request_meta])
 _service: WalletService | None = None
 
 
@@ -27,7 +43,7 @@ def service() -> WalletService:
             db.init_db(conn, db.load_config())
         finally:
             conn.close()
-        _service = WalletService(path, TokenResolver(path))
+        _service = WalletService(path, _resolver(path))
     return _service
 
 
