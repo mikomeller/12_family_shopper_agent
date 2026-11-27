@@ -1,5 +1,5 @@
 // Author:    mikomeller
-// Version:   0.1.0
+// Version:   0.1.1
 // Filename:  llm-provider.js
 // Pathname:  src/llm-provider.js
 // Purpose:   Bring-your-own model provider: preset registry, in-memory key store (never on disk, never returned), Chat Completions tool loop
@@ -17,6 +17,8 @@ export function validateBaseUrl(value) {
   try { url = new URL(String(value || "").trim()); } catch { return "The base URL is not a valid URL."; }
   if (url.username || url.password) return "The base URL must not contain credentials.";
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  // No link-local or private address literals (cloud metadata, internal hosts).
+  if (!local && /^(169\.254\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.|\[f[cde])/i.test(url.hostname)) return "The base URL must not point to a private or link-local address.";
   if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) return "The base URL must start with https:// (http:// only for localhost).";
   return null;
 }
@@ -54,7 +56,9 @@ export function setConfig({ providerId, baseUrl, model, apiKey }) {
   if (problem) return problem;
   const chosenModel = String(model || p.defaultModel || "").trim().slice(0, 200);
   if (!chosenModel) return "Enter a model name.";
-  let key = config.providerId === providerId ? config.apiKey : "";
+  // A stored key is kept only when provider AND base URL are unchanged, so it can never be sent to a new host.
+  const newBase = url.replace(/\/+$/, "");
+  let key = config.providerId === providerId && config.baseUrl === newBase ? config.apiKey : "";
   if (typeof apiKey === "string" && apiKey.trim()) key = apiKey.trim().slice(0, 500);
   config = { providerId, baseUrl: url.replace(/\/+$/, ""), model: chosenModel, apiKey: key };
   return null;
@@ -76,8 +80,8 @@ export async function chatCompletionsLoop({ system, messages, tools, callTool, m
       body: JSON.stringify({ model, messages: convo, tools: chatTools }),
     });
     if (!res.ok) {
-      const detail = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 200);
-      throw new Error(`The model provider answered ${res.status}.${res.status === 401 || res.status === 403 ? " Check the API key." : ""} ${detail.split(apiKey).join("***")}`.trim());
+      // The upstream body is not passed on: it could echo the request headers (the key).
+      throw new Error(`The model provider answered ${res.status}.${res.status === 401 || res.status === 403 ? " Check the API key." : ""}`);
     }
     const msg = (await res.json()).choices?.[0]?.message;
     if (!msg) throw new Error("The model provider returned no message.");
