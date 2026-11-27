@@ -6,7 +6,7 @@ title: Family Shopper Agent. Pocket money with guardrails
 ---
 <!--
 Author:    mikomeller, rhaveen-sa
-Version:   0.1.4
+Version:   0.1.5
 Filename:  pitch.md
 Pathname:  pitch/pitch.md
 Purpose:   Pitch deck (Marp Markdown, 3 minutes) for the AI Agents Berlin hackathon, Affinidi TrustBoris challenge.
@@ -58,7 +58,7 @@ Up to the budget the trust layer decides. Above it, a parent steps in.
 
 **Case 2.** **Child** asks for a board game (30,98 €). It is above the budget: refused with the reason and the amount left. Child asks a parent. **Parent** steps in and approves. The family budget pays (358,03 € left). The child's own budget shows 0,00 €.
 
-**Case 3.** Teen wants a 79,99 € coffee machine: above the 50 € budget → refused → a parent steps in.
+**Case 3.** Teen wants a 79,99 € coffee machine: above the 50 € budget → refused → a parent steps in and approves. End state: Family 278,04 € of 400 € left, Child 0,00 € left, Teen 0,00 € left.
 
 Also in the app:
 - A fake discount ("was 449 €") is INFLATED and blocked for everyone.

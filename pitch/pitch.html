@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Author:    mikomeller, rhaveen-sa
-Version:   0.3.1
+Version:   0.3.3
 Filename:  pitch.html
 Pathname:  pitch/pitch.html
 Purpose:   Designed pitch deck (3 minutes, 8 main slides and 2 backup slides) for the Affinidi TrustBoris challenge.
@@ -111,6 +111,19 @@ Purpose:   Designed pitch deck (3 minutes, 8 main slides and 2 backup slides) fo
   .qa .panel h3 { margin-bottom: .9cqw; }
   .backup { position: absolute; right: 7cqw; top: 6cqw; font-size: 1.1cqw; font-weight: 600; color: var(--soft); border: 1px solid var(--line); border-radius: 99px; padding: .35cqw 1cqw; }
 
+  /* demo slide: three cases */
+  .demo3-head { display: flex; justify-content: space-between; align-items: center; }
+  .demo3-head .eyebrow { margin-bottom: 1cqw; }
+  .demo3-cases { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2cqw; margin-top: 2cqw; }
+  .demo3-case { padding: 2cqw 2.2cqw; border-top: .5cqw solid var(--c); }
+  .demo3-label { display: flex; align-items: center; gap: .8cqw; font-size: 1.5cqw; font-weight: 700; }
+  .demo3-label i { width: 1.1cqw; height: 1.1cqw; border-radius: 50%; background: var(--c); }
+  .demo3-case .amt { font-size: 4.4cqw; margin: .6cqw 0 .8cqw; }
+  .demo3-beat { padding-top: .9cqw; margin-top: .9cqw; border-top: 1px solid var(--line); }
+  .demo3-beat small { display: block; font-size: 1.05cqw; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--soft); }
+  .demo3-beat span { display: block; font-size: 1.45cqw; line-height: 1.35; margin-top: .25cqw; }
+  .demo3-rule { font-size: 1.95cqw; font-weight: 600; margin-top: 2cqw; }
+
   .notes { display: none; position: fixed; left: 0; right: 0; top: 0; z-index: 9; background: rgba(29,29,31,.92); color: #f5f5f7;
     font-size: 15px; line-height: 1.5; padding: 12px 24px; backdrop-filter: blur(10px); }
   body.show-notes .notes { display: block; }
@@ -129,7 +142,7 @@ Purpose:   Designed pitch deck (3 minutes, 8 main slides and 2 backup slides) fo
         <p class="lead">Your teen's and child's agent find the cheapest offer and order on their own, up to the budget. It never spends more than the family allows.</p>
         <div class="chips"><span>Live idealo MCP</span><span>Your own model and key</span><span>Limits in the wallet</span></div>
       </div>
-      <div class="rings" data-rings="22,55,5.5" style="--cb:3cqw;--cs:1.1cqw"><div class="center"><b>358.03 €</b><span>family money left</span></div></div>
+      <div class="rings" data-rings="100,100,30.5" style="--cb:2.4cqw;--cs:1cqw"><div class="center"><b>278.04 €</b><span>family money left</span></div></div>
     </div>
     <div class="foot">AI Agents Berlin · Affinidi TrustBoris challenge · 27 Nov 2026</div>
   </section>
@@ -158,37 +171,48 @@ Purpose:   Designed pitch deck (3 minutes, 8 main slides and 2 backup slides) fo
 
   <!-- 3 Live demo -->
   <section class="slide" data-notes="100 s. Switch to the browser: http://localhost:6274/?story=1 and press Play the story. The gateway steps in the story are simulated and labelled so (TrustBoris is not connected). If the browser fails, run: PYTHONPATH=src uv run python scripts/demo.py and say: same wallet, driven by a script instead of the agent. It ends with DEMO OK 5/5 scenes.">
-    <div class="split" style="grid-template-columns:1.25fr .75fr">
+    <div class="demo3-head">
       <div>
         <div class="eyebrow">Live demo · 100 seconds</div>
-        <h2>One story, two cases.</h2>
-        <div class="steps">
-          <div class="step"><div class="n" style="background:var(--teen)">1</div><div><b>Child asks for Der Hobbit.</b><span>idealo price comparison highlights the best offer: Shop A, 10,99 €.</span></div></div>
-          <div class="step"><div class="n" style="background:var(--teen)">2</div><div><b>Child orders.</b><span>Trust layer decides: ordered, no parent needed. 9,01 € left.</span></div></div>
-          <div class="step"><div class="n" style="background:var(--child)">3</div><div><b>Child asks for a board game.</b><span>30,98 € is above the budget. Refused with the reason and the amount left.</span></div></div>
-          <div class="step"><div class="n" style="background:var(--fam)">4</div><div><b>Child asks a parent. Parent steps in.</b><span>Approved. Family budget pays: 358,03 € left. Child's own budget: 0,00 €.</span></div></div>
-          <div class="step"><div class="n" style="background:var(--no)">5</div><div><b>Fake discount.</b><span>"Was 449 €", really 3.5 % off. Blocked.</span></div></div>
-        </div>
+        <h2>One story, three cases.</h2>
       </div>
-      <div class="rings" data-rings="22,55,5.5" style="--cb:2.4cqw;--cs:1cqw"><div class="center"><b>358.03 €</b><span>family money left</span></div></div>
+      <div class="rings" data-rings="22,55,5.5" style="width:9cqw"></div>
     </div>
+    <div class="demo3-cases">
+      <div class="card demo3-case" style="--c:var(--child)">
+        <div class="demo3-label"><i></i>Child · within budget</div>
+        <div class="amt">10,99 €</div>
+        <div class="demo3-beat"><small>Asks</small><span>Der Hobbit. idealo highlights the best offer: Shop A.</span></div><div class="demo3-beat"><small>Trust layer decides</small><span>Ordered. No parent needed.</span></div><div class="demo3-beat"><small>Result</small><span>9,01 € of 20 € left.</span></div>
+      </div>
+      <div class="card demo3-case" style="--c:var(--fam)">
+        <div class="demo3-label"><i></i>Child · above budget</div>
+        <div class="amt">30,98 €</div>
+        <div class="demo3-beat"><small>Asks</small><span>A board game.</span></div><div class="demo3-beat"><small>Trust layer decides</small><span>Refused, with the reason and the amount left.</span></div><div class="demo3-beat"><small>Result</small><span>Child asks a parent. Parent steps in and approves. Family: 358,03 € left.</span></div>
+      </div>
+      <div class="card demo3-case" style="--c:var(--teen)">
+        <div class="demo3-label"><i></i>Teen · above budget</div>
+        <div class="amt">79,99 €</div>
+        <div class="demo3-beat"><small>Asks</small><span>A coffee machine, genuine discount.</span></div><div class="demo3-beat"><small>Trust layer decides</small><span>Refused: above the teen's 50 €.</span></div><div class="demo3-beat"><small>Result</small><span>Teen asks a parent. Parent approves. Family: 278,04 € left. Teen: 0,00 €.</span></div>
+      </div>
+    </div>
+    <p class="demo3-rule">Up to the budget the trust layer decides. Above it, a parent steps in.</p>
     <div class="pg">3</div>
   </section>
 
   <!-- 4 After the demo -->
-  <section class="slide" data-notes="10 s. This is the state after the story. Point at the child line: the board game did not fit, a parent stepped in and the family budget paid.">
+  <section class="slide" data-notes="10 s. This is the state after the story. Point at the lines: the child ordered the book alone, the board game and the coffee machine did not fit, a parent stepped in each time and the family budget paid.">
     <div class="split">
       <div>
         <div class="eyebrow">After the demo</div>
         <h2>Every "no" says why and how much is left.</h2>
         <div class="legend">
-          <div class="li"><i style="background:var(--teen)"></i><span>Child orders Der Hobbit · 10.99 € of 20 €</span><b>9.01 € left</b></div>
-          <div class="li"><i style="background:var(--child)"></i><span>Parent approves the board game · 30.98 €</span><b>child 0.00 € left</b></div>
-          <div class="li"><i style="background:var(--fam)"></i><span>Family · 41.97 € of 400 €</span><b>358.03 € left</b></div>
-          <div class="li no"><i style="background:var(--no)"></i><span>Child asks for the board game alone · 30.98 €</span><b>refused</b></div>
+          <div class="li"><i style="background:var(--child)"></i><span>Child · Der Hobbit 10.99 €, board game 30.98 € (parent)</span><b>0.00 € left</b></div>
+          <div class="li"><i style="background:var(--teen)"></i><span>Teen · coffee machine 79.99 € (parent)</span><b>0.00 € left</b></div>
+          <div class="li"><i style="background:var(--fam)"></i><span>Family · 121.96 € of 400 €</span><b>278.04 € left</b></div>
+          <div class="li no"><i style="background:var(--no)"></i><span>Board game and coffee machine asked alone</span><b>refused</b></div>
         </div>
       </div>
-      <div class="rings" data-rings="22,55,5.5" style="--cb:2.6cqw;--cs:1cqw"><div class="center"><b>358.03 €</b><span>family has left</span></div></div>
+      <div class="rings" data-rings="100,100,30.5" style="--cb:2.6cqw;--cs:1cqw"><div class="center"><b>278.04 €</b><span>family has left</span></div></div>
     </div>
     <div class="pg">4</div>
   </section>

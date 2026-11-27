@@ -1,5 +1,5 @@
 // Author:    mikomeller
-// Version:   0.1.7
+// Version:   0.1.8
 // Filename:  ui_wallet_smoke.mjs
 // Pathname:  scripts/ui_wallet_smoke.mjs
 // Purpose:   Smoke test of the Node UI server (offline mode, no OpenAI key) against the Family Wallet; start the server with a fresh WALLET_DB
@@ -199,6 +199,26 @@ if (process.env.FAKE_LLM === "1") {
   const del = await call("DELETE", "/api/llm/key", null, "parent");
   const st2 = await call("GET", "/api/idealo/status");
   check("DELETE /api/llm/key returns to offline-mock", del.status === 200 && del.body.active?.hasKey === false && st2.body.mode === "offline-mock", st2.body.mode);
+}
+
+if (process.env.DEMO_RESET === "1") {
+  const probe = await call("POST", "/api/demo/reset", { confirm: "reset-demo-wallet" }, "teen");
+  if (probe.status === 404) {
+    console.log("SKIP reset (server has reset disabled)");
+  } else {
+    check("reset as teen is 403", probe.status === 403, probe.body.error);
+    const noConfirm = await call("POST", "/api/demo/reset", {}, "parent");
+    check("reset as parent without confirm is 400", noConfirm.status === 400, noConfirm.body.error);
+    const ok = await call("POST", "/api/demo/reset", { confirm: "reset-demo-wallet" }, "parent");
+    check("reset as parent with confirm is 200 ok:true", ok.status === 200 && ok.body.ok === true, JSON.stringify(ok.body));
+    const after = await call("GET", "/api/state", null, "parent");
+    const rem = (id) => after.body.members?.find((m) => m.id === id)?.remainingEur;
+    check("after reset: 0 purchases, 0 pending, family 400, teen 50, child 20",
+      after.body.purchases?.length === 0 && after.body.pendingApprovals?.length === 0 && after.body.family?.remainingEur === 400 && rem("teen") === 50 && rem("child") === 20,
+      JSON.stringify({ p: after.body.purchases?.length, a: after.body.pendingApprovals?.length, f: after.body.family?.remainingEur, t: rem("teen"), c: rem("child") }));
+    const again = await buy("child", { productName: cheapest?.[1] || "Der Hobbit", priceEur: cheapestEur, productUrl: cheapest?.[2], productRef: "hobbit-pb" });
+    check("child purchase of hobbit-pb after reset is 201 (no restart)", again.status === 201, JSON.stringify(again.body).slice(0, 150));
+  }
 }
 
 process.exit(failed ? 1 : 0);
