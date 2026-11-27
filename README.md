@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller, rhaveen-sa
-Version:   0.1.9
+Version:   0.1.10
 Filename:  README.md
 Pathname:  README.md
 Purpose:   Overview, structure and first-time setup of 12_family_shopper_agent
@@ -11,7 +11,7 @@ Pocket money with guardrails. A shopping agent for the whole family: it searches
 A teen's agent orders on its own. A child's order waits for a parent. Nobody spends more than the family allows.
 
 Built for the AI Agents Berlin hackathon, Affinidi TrustBoris challenge (27 Nov 2026).
-Pitch deck: [`pitch/pitch.html`](pitch/pitch.html) · 2 minute script: [`pitch/pitch_script_2min.md`](pitch/pitch_script_2min.md) ·
+Pitch deck (live): https://mikomeller.github.io/12_family_shopper_agent/ (source [`pitch/pitch.html`](pitch/pitch.html)) · 2 minute script: [`pitch/pitch_script_2min.md`](pitch/pitch_script_2min.md) ·
 Website design: [`doc/design/website_design.md`](doc/design/website_design.md)
 
 ## What it does
