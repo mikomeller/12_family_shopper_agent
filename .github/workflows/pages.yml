@@ -1,0 +1,42 @@
+# Author:    rhaveen-sa (with Claude Code)
+# Version:   0.1.0
+# Filename:  pages.yml
+# Pathname:  .github/workflows/pages.yml
+# Purpose:   Publish the pitch deck to GitHub Pages on every push to main (and on demand).
+#            Site root = pitch/pitch.html (the Rings deck). Also: /plain.html (plain deck), /website.html (website mockup).
+#            One-time setup by a repo admin: Settings > Pages > Source: GitHub Actions.
+name: Pages
+on:
+  push:
+    branches: [main]
+    paths: ["pitch/**", "doc/design/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Build site
+        run: |
+          mkdir -p _site
+          cp pitch/pitch.html _site/index.html
+          cp pitch/pitch_plain.html _site/plain.html
+          cp doc/design/website_mockup.html _site/website.html
+          touch _site/.nojekyll
+          ls -la _site
+      - uses: actions/configure-pages@v6.0.0
+      - uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v5.0.1
