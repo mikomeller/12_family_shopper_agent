@@ -1,0 +1,43 @@
+# Author:    mikomeller
+# Version:   0.1.0
+# Filename:  pyproject.toml
+# Pathname:  pyproject.toml
+# Purpose:   Project metadata, dependencies and tool config (ruff, pytest) for family-shopper-agent; managed with uv
+
+[project]
+name = "family-shopper-agent"
+version = "0.1.0"
+description = "Family shopping agent with Family Wallet MCP and spending caps (TrustBoris hackathon)"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp>=2.3.0",
+    "pydantic>=2.14.4",
+    "pyyaml>=6.0.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/family_shopper"]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "ruff>=0.17.6",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# existing helper scripts predate the 110-column rule; long argparse/gh lines are accepted for now
+"scripts/*.py" = ["E501"]

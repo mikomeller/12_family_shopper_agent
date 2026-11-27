@@ -1,0 +1,25 @@
+%% Author:    mikomeller
+%% Version:   0.1.0
+%% Filename:  discount_check.mmd
+%% Pathname:  doc/diagrams/discount_check.mmd
+%% Purpose:   Verdict decision of the deterministic discount checker (check_discount, ticket #25, eval S-09);
+%%            spec in doc/design/discount_check.md
+flowchart TD
+    IN[/"sale_price_cents, claimed_was_cents?, history[days_ago, price_cents],<br/>sale_days, best_offer_cents?"/] --> V{"inputs valid?<br/>sale>0, prices>0, days>=0,<br/>was>=sale if given"}
+    V -->|no| INV[INVALID_INPUT]
+    V -->|yes| W["window = points with sale_days < days_ago <= 30<br/>(sale days excluded)"]
+    W --> C{"claimed_was given<br/>and was > sale?"}
+    C -->|no| NDC["NO_DISCOUNT_CLAIMED<br/>(still report reference_low / real_bp if window >= 7)"]
+    C -->|yes| H{"len(window) >= 7?"}
+    H -->|no| INS[INSUFFICIENT_HISTORY]
+    H -->|yes| R["reference_low = min(window)<br/>claimed_bp = (was-sale)*10000 // was<br/>real_bp = max(0, (ref-sale)*10000 // ref)"]
+    R --> S{"sale >= reference_low?"}
+    S -->|yes| INF1["INFLATED<br/>no reduction vs 30-day low"]
+    S -->|no| T{"claimed_bp - real_bp > 100?"}
+    T -->|yes| INF2["INFLATED<br/>'was' price above 30-day low"]
+    T -->|no| B{"best_offer < sale?"}
+    B -->|yes| NBP[NOT_BEST_PRICE]
+    B -->|no| G[GENUINE]
+    INF1 -.-> CE["cheaper_elsewhere = best_offer < sale<br/>(set on every non-INVALID result)"]
+    INF2 -.-> CE
+    NDC -.-> CE
