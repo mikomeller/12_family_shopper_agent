@@ -1,7 +1,7 @@
 {
   "_header": {
     "Author": "mikomeller",
-    "Version": "0.1.5",
+    "Version": "0.1.6",
     "Filename": "backlog.json",
     "Pathname": "scripts/backlog.json",
     "Purpose": "Backlog for 12_family_shopper_agent: labels, milestones, Project fields, epics and stories (a story names its epic in 'parent') read by setup_github.py"
@@ -973,6 +973,40 @@
         "Judging criterion": "4 Only what matters"
       },
       "body": "## Why\nOwner request 2026-11-27: every team member should be able to use their own AI provider or API key instead of one shared OpenAI key.\n\n## Tasks\n- [ ] Provider registry: OpenAI / Codex API key, Nebius Token Factory, custom OpenAI-compatible endpoint (`src/llm-provider.js`)\n- [ ] Chat Completions tool loop for OpenAI-compatible providers\n- [ ] Settings dialog in the UI (parent only); key held in server memory only, never returned, never logged\n- [ ] Test with a local fake OpenAI-compatible server (`scripts/fake_llm.mjs`)\n- [ ] Tried once with a real Nebius key and a real OpenAI key by a person\n\n## Acceptance criteria\n- [ ] The key never appears in a response, a log or the repo\n- [ ] Identity rules, wallet caps and the INFLATED block hold with any provider\n\nNot in scope: signing in with a ChatGPT/Codex subscription account (OAuth); only API keys."
+    },
+    {
+      "title": "Budget rule: up to the budget the wallet decides, above it a parent steps in (teen and child)",
+      "labels": [
+        "type:task",
+        "area:wallet-mcp"
+      ],
+      "milestone": "M1 Core build",
+      "parent": "Epic E1: Family Wallet MCP",
+      "fields": {
+        "Stage": "Test",
+        "Priority": "P0",
+        "Size": "M",
+        "Boris feature": "Tool gating",
+        "Judging criterion": "3 More freedom safely"
+      },
+      "body": "## Why\nOwner decisions 2026-11-27 evening, replacing \"every child order needs a parent\": up to the member's own budget the trust layer decides; above it the order is refused and a parent steps in. A parent-approved order counts against the member's budget and the family budget.\n\n## Tasks\n- [x] Wallet: child and teen `place_order` within the personal and family budget; above it `PERSONAL_CAP_EXCEEDED` with \"A parent can step in\"\n- [x] Wallet: `request_approval` for child and teen; `approve_request` checks the family cap only; remaining never negative\n- [x] Server: 409 `canAskParent`; route `POST /api/family/request-approval`; chat tool `request_parent_approval`\n- [x] Offers: \"Within your budget\" / \"Above your budget — a parent can step in\"\n- [x] Tests `tests/test_child_budget_rule.py`; evals S-15, S-16, S-17; harness invariant counts approved spend\n- [ ] Limit on open requests per member (reviewer remark: unlimited today)\n\n## Acceptance criteria\n- [x] No order above a member's budget without a parent's approval (30-thread race tests, adversarial driver)\n- [x] Child part merged by PR #69 after independent review\n- [ ] Teen part merged (PR #70, review pending)"
+    },
+    {
+      "title": "Guided story in the web UI: within budget the trust layer decides, above it a parent steps in",
+      "labels": [
+        "type:task",
+        "area:demo"
+      ],
+      "milestone": "M3 Demo & pitch",
+      "parent": "Epic E5: Demo and pitch",
+      "fields": {
+        "Stage": "Test",
+        "Priority": "P0",
+        "Size": "S",
+        "Boris feature": "Identity",
+        "Judging criterion": "2 Trust you can see"
+      },
+      "body": "## Why\nThe demo must show the flow without typing: a child asks for a book, idealo comparison highlights the best offer, the child orders, the trust layer decides; then a product above the budget is refused and a parent steps in.\n\n## Tasks\n- [x] \"Play the story\" button and `?story=1`, decision trail, real API calls against the Family Wallet\n- [x] Case 1: Der Hobbit within the budget — ordered, no parent needed\n- [x] Case 2: board game above the budget — refused, child asks a parent, parent approves\n- [x] Controls really disabled while the story runs; the story approves its own request\n- [x] On-screen note: TrustBoris is not connected, gateway steps are simulated, the wallet enforces the limits\n- [ ] Clicked through by a person in a browser (verified in headless Chrome only)\n- [ ] Story against a connected TrustBoris agent\n\n## Acceptance criteria\n- [x] Replayed end to end in headless Chrome; wallet state afterwards matches the trail\n- [x] Merged by PR #63, #68, #69"
     }
   ]
 }

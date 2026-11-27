@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller, rhaveen-sa
-Version:   0.1.10
+Version:   0.1.11
 Filename:  README.md
 Pathname:  README.md
 Purpose:   Overview, structure and first-time setup of 12_family_shopper_agent
@@ -8,7 +8,7 @@ Purpose:   Overview, structure and first-time setup of 12_family_shopper_agent
 # Family Shopper Agent
 
 Pocket money with guardrails. A shopping agent for the whole family: it searches idealo, compares shops and orders.
-A teen's agent orders on its own. A child's order waits for a parent. Nobody spends more than the family allows.
+Teen and child order on their own up to their monthly budget. Above it a parent steps in. Nobody spends more than the family allows.
 
 Built for the AI Agents Berlin hackathon, Affinidi TrustBoris challenge (27 Nov 2026).
 Pitch deck (live): https://mikomeller.github.io/12_family_shopper_agent/ (source [`pitch/pitch.html`](pitch/pitch.html)) · 2 minute script: [`pitch/pitch_script_2min.md`](pitch/pitch_script_2min.md) ·
@@ -17,16 +17,18 @@ Website design: [`doc/design/website_design.md`](doc/design/website_design.md)
 ## What it does
 | Who | What the agent does alone | Limit per month |
 |---|---|---|
-| Teen | searches, compares, orders | 50 € |
-| Child | searches; every order becomes a request to a parent | 20 € |
+| Teen | searches, compares, orders up to the budget; above it the wallet refuses and a parent steps in | 50 € |
+| Child | searches, compares, orders up to the budget; above it the wallet refuses and a parent steps in | 20 € |
 | Parent | approves or rejects requests, sets limits, chooses the model | family limit applies |
-| Whole family | all orders together | 400 € |
+| Whole family | all orders together, parent-approved ones included | 400 € |
+
+Up to the budget the trust layer decides. Above it, a parent steps in: the member asks (button **Ask a parent**, route `POST /api/family/request-approval`, chat tool `request_parent_approval`), the parent approves or rejects. A parent-approved order counts against the member's budget and the family budget.
 
 - **Live product search.** The app signs in to the official idealo MCP (`https://mcp.idealo.com/mcp`) with OAuth and searches real offers and price history.
 - **Your own model.** A parent enters the provider, model and API key in the app: OpenAI, Nebius Token Factory or any OpenAI-compatible endpoint.
   The key stays in server memory. It is never written to disk and never sent back to the browser.
 - **Limits in the wallet, not in the prompt.** Every order goes through our Family Wallet MCP. It counts money in whole cents and checks
-  the limit and writes the order in one database step. It refuses a child's direct order and a forged caller, whatever the model asks.
+  the limit and writes the order in one database step. It refuses an order above a member's budget, a forged caller and an approval from a non-parent, whatever the model asks.
 - **The server checks every price.** The model only names what to buy. The server looks up the price, shop and link itself.
   On the sample catalogue it also checks a claimed "was" price against the price history and blocks an inflated discount.
 - **Every "no" explains itself:** what was refused, why and how much is left this month.
@@ -41,6 +43,8 @@ Open `http://localhost:6274`. Then:
 2. Open **Bring your own model**. Choose the provider, enter the model and your API key.
 3. Choose **Connect idealo** and sign in in idealo's window.
 4. Switch to **Teen** or **Child** and ask for a product.
+
+Guided story: open `http://localhost:6274/?story=1` and press **Play the story**. Case 1: the child asks for *Der Hobbit*, the idealo comparison highlights the best offer, the child orders within the budget. Case 2: a board game (30,98 €) is above the budget and refused, the child asks a parent, the parent approves and the family budget pays. TrustBoris is not connected in the demo: the gateway steps in the story are simulated and labelled so; the limits are enforced by the Family Wallet.
 
 Without Docker:
 ```bash
@@ -73,7 +77,7 @@ The wallet keeps the money safe on its own. TrustBoris controls the agent around
 | Boris feature | Why we use it |
 |---|---|
 | Caller identity | the wallet needs to know who is calling to apply the right limit |
-| Tools shown per role | a child's agent never sees "place order" or "approve" |
+| Tools shown per role | a teen's or child's agent never sees `approve_request`, `reject_request` or `set_budget` |
 | Prompt and reply screening | product texts from idealo are untrusted input |
 | Throttle and response cache | protects the idealo quota (500 calls a day) and the model budget |
 | Backup model | shopping keeps working when one model provider fails |
@@ -82,12 +86,12 @@ Status: Boris is designed in and the Boris CLI runs in Docker. The agent is not 
 
 ## Tested
 ```bash
-uv run pytest -q                 # 152 passed, 13 skipped (the skipped tests need an LLM key)
+uv run pytest -q                 # 191 passed, 16 skipped (the skipped tests need an LLM key)
 uv run python scripts/demo.py    # walks the main flows against the real wallet, ends with DEMO OK: 5/5 scenes
 ```
-- Limit rules and the wallet tool contract: 72 of 72 pass.
-- 13 family scenarios, 3 runs each, with a scripted driver and a driver that breaks every rule: no limit was ever exceeded,
-  no child order went through without a parent. Results: `evals/results/`.
+- Limit rules and the wallet tool contract (L1/L2): 71 of 71 pass.
+- 16 scenario files (S-01 to S-13, S-15, S-16, S-17), 3 runs each, with a scripted driver and a driver that breaks every rule: all pass, no limit was ever exceeded,
+  no order went through above a member's budget without a parent's approval. Results: `evals/results/`.
 
 ## Known limits
 - The account switcher (Parent, Teen, Child) is a simple sign-in, not authentication. Real caller identity should come from TrustBoris.
@@ -103,7 +107,7 @@ config/                   family_budget.example.yaml (copy to family_budget.yaml
 docker/boris/             Dockerfile + README for the Boris gateway
 docker/app/               Dockerfile of the full application (web UI + wallet), see "Run everything in Docker"
 compose.yaml              services `app` and `boris` (profile `boris`)
-evals/                    eval harness (harness.py, drivers.py), scenarios S-01...S-13, L3/L4 tests, run_report.py, results/
+evals/                    eval harness (harness.py, drivers.py), scenarios S-01...S-13, S-15...S-17, L3/L4 tests, run_report.py, results/
 doc/                      research, diagrams, design (wallet_mcp.md), agents, evals, handover, tasks
 src/family_shopper/wallet/       Family Wallet MCP (stdio): db, identity (HMAC token), service, server
 src/family_shopper/idealo_mock/  offline idealo MCP mock + fixtures
@@ -149,9 +153,9 @@ docker compose up -d --build app      # builds and starts the web UI + wallet
 - `/api/state` and the chat context are read as the signed-in member: teen and child see only their own orders, requests and budget, plus the family totals.
 - Demo links: `?as=parent|teen|child` signs in as that member and `?q=<text>` fills the chat, e.g. `http://localhost:6274/?as=child&q=headphones`.
 - The sample catalogue has 13 products with invented shops, prices and 30 day histories (`_meta.source` says so).
-- Smoke tests with the server running: `node scripts/ui_wallet_smoke.mjs` (32 of 32 through the Docker endpoint) and
-  `node scripts/offline_agent_budget_check.mjs` (6 of 6). Provider path against a local fake server: `node scripts/fake_llm.mjs`, then
-  `FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs` (43 of 43).
+- Smoke tests with the server running: `node scripts/ui_wallet_smoke.mjs` (62 of 62 with `FAKE_LLM=1` and `scripts/fake_llm.mjs` running, last run 2026-11-27 evening) and
+  `node scripts/offline_agent_budget_check.mjs` (10 of 10). Provider path against a local fake server: `node scripts/fake_llm.mjs`, then
+  `FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs` (62 of 62).
 - No automated test covers a real OpenAI or Nebius key, the live idealo sign-in or the `ALLOW_UNVERIFIED_LIVE_PURCHASES` path.
   The owner reports the live idealo MCP and an own model key working in the app (2026-11-27).
 

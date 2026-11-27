@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.4
+Version:   0.1.5
 Filename:  pending.md
 Pathname:  doc/tasks/pending.md
 Purpose:   Pending tasks and next steps for 12_family_shopper_agent, in order, with owner and proof;
@@ -11,7 +11,16 @@ Purpose:   Pending tasks and next steps for 12_family_shopper_agent, in order, w
 Owner: **You** = a person at the keyboard · **Orch** = `claude --agent orchestrator` and its subagents.
 The board is the source of truth for stories; this file is the order to work in.
 
-## Next, in order (updated 2026-11-27 late evening)
+## Next, in order (updated 2026-11-27, after rounds four to seven)
+1. (You) Answer the numbered questions below (revoke the OpenAI key, close PR #33, protect `main`, Boris connection details).
+2. (Orch) PR #70 (teen ask-a-parent path): review pending; merge after the reviewer's verdict and green CI.
+3. (You) A human click-through of the UI and of `?story=1`, two dry runs of the pitch.
+4. (You) Boris login, agent in Agent Builder, identity spike #4 (`BorisResolver` is merged but never run against Boris).
+5. (Orch) Live idealo sign-in and verification so live-catalogue purchases can be enabled (refused until the server can verify prices).
+6. (Orch) L3 with a real LLM (the driver is a stub).
+7. (Orch) Open remarks: open requests unlimited per child or teen, `GET /api/llm` readable by every member, `/api/idealo/reconnect` without sign-in, `src/cli.js` bypasses the wallet, auto-merge skipped when push and label arrive together.
+
+Earlier list (2026-11-27 late evening, items 1 to 3 partly done):
 1. (You) Issue #55, numbered: 1. OpenAI or Nebius key: enter it in the "Model provider" dialog or `.env` (never commit it). 2. idealo: sign in with "Connect idealo" (live-catalogue purchases are refused for now). 3. Boris connection details.
 2. (You) `boris login` in the container (`--device`) and create the agent in Agent Builder per `doc/runbooks/boris_agent_setup.md`.
 3. (You) Spike #4: does Boris forward the caller identity?
@@ -30,7 +39,13 @@ Also open: source of `sale_days` (owner).
 - [x] `uv run pytest -q` 152 passed, 13 skipped; ruff clean; `scripts/demo.py` 5/5
 - [ ] Not proven: a real OpenAI key, a real Nebius key, live idealo OAuth, browser click-through, `ALLOW_UNVERIFIED_LIVE_PURCHASES` path
 
-## Questions to the owner
+## Questions to the owner (2026-11-27 evening, numbered)
+1. Revoke the OpenAI key after the event?
+2. Close PR #33 (rodrigo-agent; its content is on `main` since #61)?
+3. Protect `main` or require review for collaborators' PRs?
+4. Boris connection details (URL, login, agent)?
+
+Older questions (2026-11-27 late evening, key now supplied, see handover):
 1. OpenAI or Nebius key: enter it in the "Model provider" dialog or `.env` (repo root, git-ignored)?
 2. idealo: copy `.data/idealo-oauth.json` from the machine that signed in, or click "Connect idealo" in the UI (live-catalogue purchases are refused for now)?
 3. Where are the Boris connection details?

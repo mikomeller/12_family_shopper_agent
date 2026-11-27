@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.9
+Version:   0.1.10
 Filename:  lessons.md
 Pathname:  doc/tasks/lessons.md
 Purpose:   Lessons learned and the rules that prevent repeating mistakes; review at the start of every session
@@ -58,3 +58,15 @@ Purpose:   Lessons learned and the rules that prevent repeating mistakes; review
   *Rule:* run `git status` and `git log origin/<branch>..HEAD` right before every push and say what else is going up.
 - **2026-11-27 — A client-supplied price or discount claim was trusted** (review finding B2 of PR #56; B1: the discount check failed open).
   *Rule:* never trust a client-supplied price or discount claim; the server looks both up and fails closed.
+- **2026-11-27 — PR #65 merged as an empty commit.** A scripted text replacement failed its assertion, the command chain went on, and a PR was opened from a branch with no changes (fixed properly in #68).
+  *Rule:* never chain commit, push or PR creation after a step that can fail; check `git diff --cached --stat` is non-empty before committing and the PR's file count after creating it.
+- **2026-11-27 — A commit was pushed although lint had failed**, because the chain used `;`.
+  *Rule:* gate commands are joined with `&&` and the push comes only after reading their output.
+- **2026-11-27 — Collaborators merged UI and wallet changes into `main` while I worked** (#62, #64, #67), and one of their tests asserted a rule the owner had just changed.
+  *Rule:* `git fetch` and merge `origin/main` before every verification run, re-run all gates after the merge, and say which collaborator test was changed and why.
+- **2026-11-27 — A reviewer's read-only probe hit `/api/idealo/reconnect`** and wrote `.data/idealo-oauth.json`.
+  *Rule:* name side-effecting endpoints in every review brief and keep them out of probes.
+- **2026-11-27 — The real model behaved differently from the fake one twice** (no product reference in the table; looping when nothing fit).
+  *Rule:* one real-model run of the two demo questions is a gate before a demo; the story uses the deterministic assistant.
+- **2026-11-27 — I claimed "place_order is not available" for a child on screen** although the wallet merely refused it.
+  *Rule:* every on-screen statement about what enforces a rule must name the component that really enforces it.
