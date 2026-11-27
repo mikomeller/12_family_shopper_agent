@@ -60,3 +60,10 @@
 .purchase-confirm-note{padding:11px 12px;border-radius:8px;background:#f1f5ef;color:#66756a;font-size:12px;line-height:1.55}
 .purchase-confirm-modal .modal-actions{margin-top:20px}
 @media(max-width:540px){.purchase-confirm-modal{padding:25px 21px;border-radius:13px}}
+.workspace{max-width:1520px;grid-template-columns:minmax(0,1fr) 304px;gap:40px}
+.chat-column{max-width:none}
+.chat-panel{min-height:360px}
+.chat-panel.has-messages{min-height:420px;height:min(68vh,720px)}
+@media(max-width:1050px){.workspace{grid-template-columns:minmax(380px,1fr) 270px;gap:28px}}
+@media(max-width:800px){.workspace{display:flex;flex-direction:column;gap:28px}.chat-column{max-width:none}.chat-panel.has-messages{min-height:400px;height:min(65vh,640px)}}
+@media(max-width:540px){.workspace{gap:20px}.chat-panel{min-height:320px}.chat-panel.has-messages{min-height:360px;height:min(62vh,560px)}}
