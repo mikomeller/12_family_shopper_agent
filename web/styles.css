@@ -66,7 +66,7 @@ h1,h2{margin:0;letter-spacing:-.02em}h2{font-size:17px;font-weight:700}
 .who-money strong{font-size:30px;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 
 /* workspace */
-.workspace{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;max-width:1280px;width:100%;margin:0 auto;padding:20px 24px}
+.workspace{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:20px;max-width:1280px;width:100%;margin:0 auto;padding:20px 24px}
 .chat-column{min-width:0}
 .chat-panel{background:var(--surface);border-radius:24px;min-height:260px;box-shadow:var(--shadow)}
 .chat-panel.has-messages{height:min(58vh,580px);overflow:auto}
@@ -225,5 +225,60 @@ h1,h2{margin:0;letter-spacing:-.02em}h2{font-size:17px;font-weight:700}
 .trail-bold{color:var(--bad-ink)}
 .trail-spin{width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:trailspin .8s linear infinite}
 @keyframes trailspin{to{transform:rotate(360deg)}}
-.trail-summary{display:flex;flex-direction:column;gap:4px;padding:12px 14px;background:var(--ok-bg);color:var(--ok-ink);border-radius:14px;margin:8px 0}
-.trail-summary small,.trail-note{color:var(--muted);font-size:12px}
+
+/* story: Now banner, end summary, trail groups */
+.story-slot{min-height:150px;margin-bottom:12px}
+.story-banner{background:var(--surface);border-radius:24px;padding:18px 22px;box-shadow:var(--shadow);border:1px solid var(--accent-soft)}
+.banner-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.banner-progress{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--soft);font-variant-numeric:tabular-nums}
+.banner-stop{min-height:40px}
+.bar{height:6px;margin:8px 0 12px;border-radius:999px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--teen),var(--child) 55%,var(--fam));border-radius:999px;transition:width .4s}
+.banner-title{font-size:22px;letter-spacing:-.03em;margin:0 0 4px}
+.banner-now{margin:0;font-size:17px;color:var(--ink);min-height:26px}
+.story-summary{border-color:var(--ok-line)}
+.story-summary .banner-title{color:var(--ok-ink);margin-bottom:10px}
+.sum-table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:12px}
+.sum-table th,.sum-table td{text-align:left;vertical-align:top;padding:8px 10px 8px 0;border-top:1px solid var(--line)}
+.sum-table thead th{border-top:0;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--soft)}
+.sum-table tbody th{white-space:nowrap}
+.sum-budgets{margin:0 0 8px;font-variant-numeric:tabular-nums}
+.sum-actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.sum-actions button{min-height:40px}
+.trail-note{display:block;color:var(--muted);font-size:12px}
+.decision-trail{padding-bottom:12px}
+.trail-scroll{max-height:min(40vh,380px);overflow:auto;padding-right:2px}
+.case-block{border-top:1px solid var(--line)}
+.case-block:first-child{border-top:0}
+.case-block>summary{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;min-height:40px;cursor:pointer;list-style:none;font-size:14px}
+.case-block>summary::-webkit-details-marker{display:none}
+.case-block>summary::before{content:"›";color:var(--soft);transition:transform .15s}
+.case-block[open]>summary::before{transform:rotate(90deg)}
+.case-label{font-weight:700;flex:none}
+.case-name{color:var(--muted)}
+.case-amount{margin-left:auto;flex:none;white-space:nowrap;font-weight:700;font-variant-numeric:tabular-nums}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:2px 10px;border-radius:14px;font-size:12px;line-height:1.25;font-weight:600}
+.chip-ok{background:var(--ok-bg);color:var(--ok-ink)}
+.chip-bad{background:var(--bad-bg);color:var(--bad-ink)}
+.chip-run{background:var(--accent-soft);color:var(--accent)}
+.story-tag{margin-left:8px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:10px;letter-spacing:.06em}
+.user-label{color:var(--accent-ink);opacity:.85}.user-label .story-tag{background:rgba(255,255,255,.25);color:var(--accent-ink)}
+.insights-column.story-on .decision-trail{order:-2}
+.insights-column.story-on .budgets-panel{order:-1}
+@keyframes flashbg{from{background:var(--warn-bg);box-shadow:0 0 0 3px var(--warn-line)}to{background:transparent;box-shadow:0 0 0 0 transparent}}
+.who-money.flash{animation:flashbg 1.2s ease-out;border-radius:12px}
+.panel.flash{animation:flashbg 1.2s ease-out}
+.panel.budgets-panel.flash{animation-name:flashpanel}
+@keyframes flashpanel{from{background:var(--warn-bg)}to{background:var(--surface)}}
+@media(prefers-reduced-motion:reduce){.who-money.flash,.panel.flash{animation:none}.bar i{transition:none}}
+.trail-dot,.trail-body{min-width:0}
+@media(max-width:640px){
+  .story-slot{min-height:170px}
+  .banner-title{font-size:19px}
+  .sum-table,.sum-table tbody,.sum-table tr,.sum-table td,.sum-table th{display:block}
+  .sum-table thead{position:absolute;left:-9999px}
+  .sum-table tr{padding:10px 12px;margin-bottom:8px;border:1px solid var(--line);border-radius:14px}
+  .sum-table th,.sum-table td{border:0;padding:2px 0}
+  .sum-table td::before{content:attr(data-label) ": ";font-weight:600;color:var(--soft)}
+  .who-money{padding-left:0;border-left:0}
+}

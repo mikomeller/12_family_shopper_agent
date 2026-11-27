@@ -1,5 +1,5 @@
 # Author:    mikomeller
-# Version:   0.1.1
+# Version:   0.1.2
 # Filename:  compose.yaml
 # Pathname:  compose.yaml
 # Purpose:   Run the Family Shopper app (UI at http://localhost:6274) and, on request, the boris CLI in Docker.
@@ -13,6 +13,8 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      ALLOW_DEMO_RESET: "1"   # lets a signed-in parent reset the demo wallet (deletes all demo orders)
     volumes:
       - app-data:/data
     healthcheck:

@@ -10,7 +10,7 @@ import express from "express";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { callWallet, walletMemberIds } from "./wallet-client.js";
+import { callWallet, resetDemoWallet, walletMemberIds } from "./wallet-client.js";
 import { offlineReply } from "./offline-agent.js";
 import * as llm from "./llm-provider.js";
 import { connectMockTools, mockCatalogueCall } from "./mock-catalogue.js";
@@ -333,6 +333,17 @@ app.get("/api/state", async (request, response) => {
     const pendingApprovals = (requests.requests || []).map((r) => ({ requestId: r.request_id, member: displayName(r.member_id), productName: r.product_name, priceEur: eur(r.price_cents) }));
     const own = members.find((m) => m.id === request.member) || members[0];
     response.json({ members, purchases, pendingApprovals, family: own ? { capEur: own.familyCapEur, spentEur: own.familySpentEur, remainingEur: own.familyRemainingEur } : null });
+  } catch (error) { response.status(500).json({ error: error.message }); }
+});
+
+// Demo reset (guided story "Play again"): only with ALLOW_DEMO_RESET=1, only a parent, only with the confirm phrase.
+app.post("/api/demo/reset", async (request, response) => {
+  if (process.env.ALLOW_DEMO_RESET !== "1") return response.status(404).json({ error: "Demo reset is not enabled." });
+  if (request.member !== "parent") return response.status(403).json({ error: "Only a parent can reset the demo wallet." });
+  if (request.body?.confirm !== "reset-demo-wallet") return response.status(400).json({ error: 'Send confirm: "reset-demo-wallet" to reset.' });
+  try {
+    await resetDemoWallet();
+    response.json({ ok: true, message: "Demo wallet reset: no orders, budgets back to the start of the month." });
   } catch (error) { response.status(500).json({ error: error.message }); }
 });
 
