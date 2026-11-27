@@ -92,8 +92,32 @@ const ROLE_INFO = {
   child: { label: "Child", rule: "Every order needs a parent.", color: "var(--role-child)" },
 };
 
-function FormattedReply({ content, memberName, onMockPurchase }) {
+function PurchaseModal({ conf, busy, budget, onConfirm, onCancel }) {
+  const confirmRef = useRef(null);
+  useEffect(() => { confirmRef.current?.focus(); }, []);
+  useEffect(() => { const h = (e) => { if (e.key === "Escape") onCancel(); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); });
+  const child = budget?.role === "child";
+  const p = conf.product;
+  return <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+    <section className="purchase-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="pc-title" aria-describedby="pc-note">
+      <h2 id="pc-title">{child ? "Ask a parent?" : "Order this?"}</h2>
+      <p>{p.productName}{p.shopName ? ` from ${p.shopName}` : ""}</p>
+      <dl className="pc-summary">
+        <div><dt>Price incl. shipping</dt><dd>{money(p.priceEur)}</dd></div>
+        {budget?.meLeft != null && <div><dt>Your budget now</dt><dd>{money(budget.meLeft)}</dd></div>}
+        {budget?.familyLeft != null && <div><dt>Family budget now</dt><dd>{money(budget.familyLeft)}</dd></div>}
+      </dl>
+      <div className="purchase-confirm-note" id="pc-note">{child ? "A parent has to approve this before anything is ordered. " : ""}Simulated: no real order or payment.</div>
+      {conf.error && <div className="modal-error" role="alert">{conf.error} Check the offer or pick a cheaper one, then retry.</div>}
+      <div className="modal-actions"><button type="button" className="modal-cancel" onClick={onCancel} disabled={busy}>Cancel</button><button ref={confirmRef} type="button" className="modal-save" onClick={onConfirm} disabled={busy}>{busy ? "Sending…" : conf.error ? "Retry" : child ? "Send request to parent" : "Order now"}</button></div>
+    </section>
+  </div>;
+}
+
+function FormattedReply({ content, memberName, onMockPurchase, budget }) {
   const [purchaseStates, setPurchaseStates] = useState({});
+  const [purchaseConfirmation, setPurchaseConfirmation] = useState(null);
+  const [purchaseConfirming, setPurchaseConfirming] = useState(false);
   const lines = String(content).split(/\r?\n/);
   const blocks = [];
   let paragraph = [];
@@ -127,16 +151,33 @@ function FormattedReply({ content, memberName, onMockPurchase }) {
     paragraph.push(line);
   }
   flushParagraph();
-  async function recordFromRow(row, rowIndex) {
-    const product = getProductFromRow(row);
-    if (!product || !memberName || !onMockPurchase) return;
-    setPurchaseStates((current) => ({ ...current, [rowIndex]: { status: "pending" } }));
+  async function confirmPurchase() {
+    if (!purchaseConfirmation || !onMockPurchase) return;
+    const { product, rowKey } = purchaseConfirmation;
+    setPurchaseStates((current) => ({ ...current, [rowKey]: { status: "pending" } }));
+    setPurchaseConfirming(true);
     try {
       const result = await onMockPurchase({ ...product, memberName });
-      setPurchaseStates((current) => ({ ...current, [rowIndex]: { status: "done", message: result?.purchase?.pendingApproval ? "Waiting for parent approval" : "", text: result?.message || "", verdict: result?.verdict || "" } }));
+      setPurchaseStates((current) => ({ ...current, [rowKey]: { status: "done", message: result?.purchase?.pendingApproval ? "Waiting for parent approval" : "", text: result?.message || "", verdict: result?.verdict || "" } }));
+      setPurchaseConfirmation(null);
     } catch (error) {
-      setPurchaseStates((current) => ({ ...current, [rowIndex]: { status: "error", message: error.message } }));
+      setPurchaseStates((current) => ({ ...current, [rowKey]: { status: "error", message: error.message } }));
+      setPurchaseConfirmation((current) => current ? { ...current, error: error.message } : current);
+    } finally {
+      setPurchaseConfirming(false);
     }
+  }
+
+  function cancelPurchaseConfirmation() {
+    if (purchaseConfirming) return;
+    if (purchaseConfirmation?.rowKey) {
+      setPurchaseStates((current) => {
+        const next = { ...current };
+        delete next[purchaseConfirmation.rowKey];
+        return next;
+      });
+    }
+    setPurchaseConfirmation(null);
   }
   return <div className="formatted-reply">{blocks.map((block, index) => {
     if (block.type === "table") {
@@ -150,6 +191,8 @@ function FormattedReply({ content, memberName, onMockPurchase }) {
         const state = purchaseStates[`${index}-${rowIndex}`];
         const isCheapest = rowIndex === cheapestRowIndex;
         const key = `${index}-${rowIndex}`;
+        const shopIndex = header.findIndex((cell) => /shop|store|seller/i.test(cell));
+        const shopName = shopIndex >= 0 ? (row[shopIndex] || "").replace(/\*\*/g, "") : "";
         return <article key={rowIndex} className={`offer-card ${isCheapest ? "cheapest-option" : ""}`}>
           <div className="offer-main">
             <div className="offer-title"><InlineText text={row[0] || "—"} />{isCheapest && <span className="cheapest-tag">{cheapestLabel}</span>}</div>
@@ -157,7 +200,7 @@ function FormattedReply({ content, memberName, onMockPurchase }) {
           </div>
           {memberName && <div className="offer-action">{product ? <>
             <div className="offer-price">{money(product.priceEur)}</div>
-            <button className="mock-buy-button" type="button" disabled={state?.status === "pending" || state?.status === "done"} aria-label={`Record a mock purchase of ${product.productName} for ${memberName}`} onClick={() => recordFromRow(row, key)}>{state?.status === "pending" ? "Adding…" : state?.status === "done" ? (state.message ? "Requested" : "Ordered") : "Buy (mock)"}</button></> : null}</div>}
+            <button className="mock-buy-button" type="button" disabled={state?.status === "pending" || state?.status === "done"} aria-label={`Record a mock purchase of ${product.productName} for ${memberName}`} onClick={() => setPurchaseConfirmation({ product: { ...product, shopName }, rowKey: key })}>{state?.status === "pending" ? "Adding…" : state?.status === "done" ? (state.message ? "Requested" : "Ordered") : "Buy (mock)"}</button></> : null}</div>}
           {state?.status === "done" && <StatusCard kind={state.message ? "waiting" : "ordered"} text={state.text || (state.message || "Mock purchase recorded.")} verdict={state.verdict} />}
           {state?.status === "error" && <StatusCard kind={errorKind(state.message)} text={state.message} />}
         </article>;
@@ -166,7 +209,7 @@ function FormattedReply({ content, memberName, onMockPurchase }) {
     if (block.type === "list") return <ul key={index}>{block.items.map((item, itemIndex) => <li key={itemIndex}><InlineText text={item} /></li>)}</ul>;
     const vm = block.text.match(/verdict \*\*([A-Z_]+)\*\*/);
     return <p key={index}>{vm && <VerdictBadge verdict={vm[1]} />}<InlineText text={block.text} /></p>;
-  })}</div>;
+  })}{purchaseConfirmation && <PurchaseModal conf={purchaseConfirmation} busy={purchaseConfirming} budget={budget} onConfirm={confirmPurchase} onCancel={cancelPurchaseConfirmation} />}</div>;
 }
 
 function Budget({ label, remaining, spent, limit, big }) {
@@ -199,14 +242,14 @@ function MemberCard({ member, me }) {
   );
 }
 
-function ChatMessage({ message, onMockPurchase }) {
+function ChatMessage({ message, onMockPurchase, budget }) {
   const assistant = message.role === "assistant";
   return (
     <div className={`message-row ${assistant ? "assistant-row" : "user-row"}`}>
       {assistant && <div className="tiny-mark"><Icon name="spark" size={15} /></div>}
       <div className={`message-bubble ${assistant ? "assistant-bubble" : "user-bubble"}`}>
         {assistant && <div className="message-label">SHOPPER AGENT</div>}
-        <div className="message-copy">{assistant ? <FormattedReply content={message.content} memberName={message.memberName} onMockPurchase={onMockPurchase} /> : message.content}</div>
+        <div className="message-copy">{assistant ? <FormattedReply content={message.content} memberName={message.memberName} onMockPurchase={onMockPurchase} budget={budget} /> : message.content}</div>
       </div>
     </div>
   );
@@ -249,6 +292,8 @@ export default function ShopperApp() {
   const [memberSaving, setMemberSaving] = useState(false);
   const [memberError, setMemberError] = useState("");
   const endRef = useRef(null);
+  const inputRef = useRef(null);
+  const lastState = useRef(null);
   useEffect(() => { refreshState(); }, [account]);
   useEffect(() => { const q = new URLSearchParams(window.location.search).get("q"); if (q) sendMessage(q); }, []);
   const sampleMember = members[0];
@@ -263,6 +308,7 @@ export default function ShopperApp() {
       setPurchases(state.purchases);
       setPendingApprovals(state.pendingApprovals || []);
       setFamily(state.family);
+      lastState.current = state;
       const authResponse = await fetch("/api/idealo/status");
       if (authResponse.ok) {
         const authState = await authResponse.json();
@@ -320,6 +366,7 @@ export default function ShopperApp() {
       setMessages((current) => [...current, { role: "assistant", content: "I couldn’t connect just now. Check the local setup and try again." }]);
     } finally {
       setBusy(false);
+      setTimeout(() => inputRef.current?.focus(), 0);
     }
   }
 
@@ -359,15 +406,18 @@ export default function ShopperApp() {
     } catch (err) { setLlmError(err.message); } finally { setLlmSaving(false); }
   }
 
-  async function connectIdealo() {
+  async function connectIdealo(forceReconnect = false) {
     setConnecting(true);
     setError("");
+    setAuthorizationUrl("");
     try {
-      const response = await fetch("/api/idealo/connect", { method: "POST" });
+      const endpoint = forceReconnect ? "/api/idealo/reconnect" : "/api/idealo/connect";
+      const response = await fetch(endpoint, { method: "POST" });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not start idealo sign-in.");
-      if (result.connected) { setIdealoConnected(true); setIdealoCredentialsSaved(true); }
-      else setAuthorizationUrl(result.authorizationUrl);
+      setIdealoConnected(Boolean(result.connected));
+      setIdealoCredentialsSaved(Boolean(result.connected));
+      if (!result.connected) setAuthorizationUrl(result.authorizationUrl);
     } catch (err) { setError(err.message); }
     finally { setConnecting(false); }
   }
@@ -379,9 +429,11 @@ export default function ShopperApp() {
       body: JSON.stringify({ ...product, memberName: undefined }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Could not add this mock purchase.");
+    if (!response.ok) throw new Error(result.error || "Could not add this mock purchase. Pick a cheaper offer or ask a parent.");
     setError("");
     await refreshState();
+    const left = lastState.current?.members?.find((m) => String(m.name).toLowerCase() === accountRef.current)?.remainingEur;
+    setNotice(result?.purchase?.pendingApproval ? "Sent. A parent has to approve it." : `Done. ${money(left)} left this month.`);
     return result;
   }
 
@@ -391,7 +443,7 @@ export default function ShopperApp() {
       const response = await api(`/api/family/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not approve this request.");
-      setNotice(action === "reject" ? "Request rejected by parent. Nothing was spent." : "Request approved. The order was placed (simulated).");
+      setNotice(action === "reject" ? "Rejected. Nothing was spent." : "Approved. The order was placed (simulated).");
       await refreshState();
     } catch (err) { setError(err.message); }
   }
@@ -428,14 +480,16 @@ export default function ShopperApp() {
       <header className="topbar">
         <div className="brand"><AppMark /><span>Family Shopper</span></div>
         <div className="role-switch" role="radiogroup" aria-label="Signed in as (demo sign-in)">
-          {ACCOUNTS.map((id) => <button key={id} type="button" role="radio" aria-checked={account === id} className={`role-btn ${account === id ? "active" : ""}`} onClick={() => switchAccount(id)}><span className="role-avatar" style={{ background: ROLE_INFO[id].color }}>{cap(id).slice(0, 1)}</span>{cap(id)}</button>)}
+          {ACCOUNTS.map((id) => <button key={id} type="button" role="radio" aria-checked={account === id} className={`role-btn ${account === id ? "active" : ""}`} onClick={() => switchAccount(id)}><span className="role-avatar" style={{ background: ROLE_INFO[id].color }}>{cap(id).slice(0, 1)}</span>{cap(id)}{id === "parent" && pendingApprovals.length > 0 && <span className="role-badge">{pendingApprovals.length} waiting</span>}</button>)}
         </div>
         <div className="top-actions">
-          <button className="ghost-button" onClick={openLlmDialog} disabled={!isParent} title={isParent ? "" : "Sign in as Parent to change the model provider"}>Model provider</button>
-          {idealoConnected ? <span className="live-pill"><i /> idealo tools ready</span> : <button className="ghost-button" onClick={connectIdealo} disabled={connecting}>{connecting ? "Checking…" : idealoCredentialsSaved ? "Check idealo access" : "Connect idealo"}</button>}
+          <button className="ghost-button" onClick={openLlmDialog} disabled={!isParent} title={isParent ? "" : "Only a parent can change this"}>Model provider</button>
+          {idealoConnected ? <span className="live-pill"><i /> idealo tools ready</span> : <button className="ghost-button" onClick={() => connectIdealo(false)} disabled={connecting}>{connecting ? "Checking…" : idealoCredentialsSaved ? "Check idealo access" : "Connect idealo"}</button>}
+          <button className="ghost-button" type="button" onClick={() => connectIdealo(true)} disabled={connecting}>Reconnect idealo</button>
         </div>
       </header>
       {offline ? <div className="offline-banner">Offline demo: idealo mock, no LLM</div> : llmMode && <div className="offline-banner">Model: {llmMode.replace("llm:", "")} · catalogue: {catalogue === "live" ? "live idealo" : "idealo mock"}</div>}
+      <div className="toast-area" aria-live="polite">{notice && <div className="toast">{notice}</div>}</div>
       <div className="who-bar" style={{ "--who": info.color }}>
         <div className="who-text"><span className="who-label">Signed in as</span><strong>{info.label}</strong><span className="who-rule">{rule}</span></div>
         {me && <div className="who-money"><span>Your budget left</span><strong>{money(me.remainingEur)}</strong></div>}
@@ -448,34 +502,34 @@ export default function ShopperApp() {
               <div className="welcome-card">
                 <div className="welcome-title">What are we looking for?</div>
                 <div className="welcome-subtitle">Ask for a product. The agent compares offers and the family wallet decides whether you may buy.</div>
+                <ol className="steps"><li>Choose who you are</li><li>Ask for a product</li><li>Order within your budget</li></ol>
                 <div className="suggestions">
                   {suggestions.map((suggestion) => <button key={suggestion} type="button" className="suggestion" onClick={() => sendMessage(suggestion)}>{suggestion}<Icon name="arrow" size={15} /></button>)}
                 </div>
               </div>
-            ) : <div className="messages">{messages.map((message, index) => <ChatMessage key={`${index}-${message.role}`} message={message.role === "assistant" ? { ...message, memberName: cap(account) } : message} onMockPurchase={recordMockPurchase} />)}{busy && <div className="message-row assistant-row" role="status"><div className="thinking"><i /><i /><i /><span>Comparing options…</span></div></div>}<div ref={endRef} /></div>}
+            ) : <div className="messages">{messages.map((message, index) => <ChatMessage key={`${index}-${message.role}`} message={message.role === "assistant" ? { ...message, memberName: cap(account) } : message} onMockPurchase={recordMockPurchase} budget={{ role: account, meLeft: me?.remainingEur, familyLeft: family?.remainingEur }} />)}{busy && <div className="message-row assistant-row" role="status"><div className="thinking"><i /><i /><i /><span>Agent is comparing offers…</span></div></div>}<div ref={endRef} /></div>}
           </div>
 
           <div className="status-area" aria-live="polite">
             {error && <div className="error-note" role="alert"><Icon name="info" size={16} />{error}</div>}
-            {notice && <div className="notice-note">{notice}</div>}
           </div>
           {authorizationUrl && !idealoConnected && <div className="connect-note"><div><strong>Finish connecting idealo</strong><span>Sign in in idealo’s secure window, then return here.</span></div><a href={authorizationUrl} target="_blank" rel="noreferrer">Continue to idealo <Icon name="arrow" size={15} /></a></div>}
           <form className="composer" onSubmit={(event) => { event.preventDefault(); sendMessage(); }}>
             <label htmlFor="chat-input" className="composer-label">Message to the shopping agent</label>
-            <textarea id="chat-input" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } }} placeholder="e.g. Der Hobbit, headphones…" rows="2" disabled={busy} />
+            <textarea id="chat-input" ref={inputRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } }} placeholder="e.g. Der Hobbit, headphones…" rows="2" readOnly={busy} />
             <div className="composer-bottom"><span>Prices can change. Purchases are simulated.</span><button className="send-button" type="submit" disabled={!draft.trim() || busy}>{busy ? "Sending…" : "Send"} <Icon name="arrow" size={17} /></button></div>
           </form>
         </section>
 
         <aside className="insights-column">
           <details className="panel" open={mineOpen} onToggle={(e) => setMineOpen(e.currentTarget.open)}>
-            <summary><h2>Budgets</h2><button type="button" className="icon-button" onClick={(e) => { e.preventDefault(); setMemberError(""); setMemberModalOpen(true); }} aria-label="Add family member" title="Add family member"><Icon name="plus" size={17} /></button></summary>
+            <summary><h2>Budgets</h2></summary>
             {family && <Budget big label="Family budget this month" remaining={family.remainingEur} spent={family.spentEur} limit={family.capEur} />}
             {members.map((member) => <MemberCard key={member.name} member={member} me={String(member.name).toLowerCase() === account} />)}
             {members.length === 0 && <div className="empty-card">No budgets loaded yet.</div>}
           </details>
 
-          <section className="panel">
+          <section className={`panel ${isParent && pendingApprovals.length ? "panel-first" : ""}`}>
             <h2>Waiting for parent approval {pendingApprovals.length > 0 && <span className="activity-count">{pendingApprovals.length}</span>}</h2>
             {pendingApprovals.length === 0 && <div className="empty-card">No requests waiting.</div>}
             {pendingApprovals.map((r) => <div className="approval" key={r.requestId}><div className="purchase-info"><strong>{r.productName}</strong><small>{r.member} · {money(r.priceEur)}</small></div>

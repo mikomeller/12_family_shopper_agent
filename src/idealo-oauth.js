@@ -15,7 +15,7 @@ let connectionIssue = null;
 function describeConnectionIssue(error) {
   const message = String(error?.message || error || "Connection could not be verified.");
   if (error?.status === 403 || /\b403\b|Forbidden/i.test(message)) {
-    return "idealo returned 403 Forbidden. Sign-in was saved, but this account cannot access the idealo MCP tools yet. Contact mcp@idealo.de and include this message.";
+    return "idealo returned 403 Forbidden while Family Shopper was checking MCP access. This does not identify the cause; this app uses its own OAuth client. Try Reconnect idealo, then contact mcp@idealo.de if the check still fails.";
   }
   return `idealo sign-in could not be verified: ${message}`;
 }
@@ -81,6 +81,16 @@ export async function getIdealoAuthStatus() {
     account: toolsVerified ? "Connected to idealo" : null,
     error: connectionIssue,
   };
+}
+
+export async function resetIdealoConnection() {
+  await load();
+  await pendingTransport?.close().catch(() => {});
+  pendingTransport = undefined;
+  store = { ...store, clients: {}, tokens: {}, lastIssuer: null, verifier: null, discovery: null, state: null };
+  toolsVerified = false;
+  connectionIssue = null;
+  await persist();
 }
 
 export async function beginIdealoConnection() {
