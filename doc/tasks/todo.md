@@ -154,3 +154,11 @@ Input: panel review `doc/reviews/2026-11-27_pitch_panel_review.md`. Owner said g
 - [x] 2 minute script `pitch/pitch_script_2min.md` (about 255 words)
 - [x] Proof: pytest 152 passed, 13 skipped; evals l3/l4 28 passed, 13 skipped; demo 5/5; ruff clean; pitch-writer 83.0
 - [ ] Owner: delete or keep `pitch/design_previews.html` and `pitch/design_options.png` (helper files)
+
+## Task: App restyled in the Rings design (2026-11-27, rhaveen-sa-ui-rings)
+- [x] `web/styles.css` v0.2.0: Rings tokens, light and dark mode, pill buttons, frosted top bar
+- [x] `web/shopper-app.jsx` v0.2.0: `Ring` component in the logo, the "Signed in as" bar, the family budget (all three rings) and each member card
+- [x] Product wording: "Order" instead of "Buy (mock)", "Orders are recorded in the family wallet. No payment is made."; server and offline agent messages to match
+- [x] `scripts/offline_agent_budget_check.mjs`: hard-coded temp path of another machine replaced by `os.tmpdir()` (it failed on every other machine)
+- [x] Proof: `ui_wallet_smoke.mjs` 32 PASS on a fresh wallet; `offline_agent_budget_check.mjs` 6 PASS; `vite build` ok; pytest 152 passed, 13 skipped; ruff clean;
+      checked in the browser at 1280x820, light and dark, as Teen and Parent; one teen test order (10.99 EUR) in the local dev wallet
