@@ -22,6 +22,9 @@ function Icon({ name, size = 20 }) {
   if (name === "arrow") return <svg {...shared}><path d="M5 12h14M13 6l6 6-6 6"/></svg>;
   if (name === "bag") return <svg {...shared}><path d="M5 8h14l1 13H4L5 8Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>;
   if (name === "wallet") return <svg {...shared}><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H20v16H6.5A2.5 2.5 0 0 1 4 17.5v-11Z"/><path d="M4 7h16M15 13h2"/></svg>;
+  if (name === "check") return <svg {...shared}><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/></svg>;
+  if (name === "clock") return <svg {...shared}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>;
+  if (name === "stop") return <svg {...shared}><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>;
   if (name === "plus") return <svg {...shared}><path d="M12 5v14M5 12h14"/></svg>;
   return <svg {...shared}><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>;
 }
@@ -58,6 +61,36 @@ function getProductFromRow(row) {
   const claimedWasEur = frag.get("was") ? Number(frag.get("was")) / 100 : undefined;
   return { productName, productUrl: link?.[2] || null, priceEur, productRef, claimedWasEur };
 }
+
+const STATUS = {
+  ordered: { label: "Ordered", icon: "check" },
+  waiting: { label: "Waiting for parent approval", icon: "clock" },
+  refused: { label: "Refused: over the monthly limit", icon: "stop" },
+  blocked: { label: "Blocked: discount is not real", icon: "stop" },
+  rejected: { label: "Rejected by parent", icon: "stop" },
+  error: { label: "Not recorded", icon: "stop" },
+};
+function errorKind(message) {
+  const m = String(message || "");
+  if (/discount/i.test(m) || /^Blocked/i.test(m)) return "blocked";
+  if (/limit|budget|cap\b|exceed|remain/i.test(m)) return "refused";
+  if (/reject/i.test(m)) return "rejected";
+  return "error";
+}
+function StatusCard({ kind, text, verdict }) {
+  const st = STATUS[kind] || STATUS.error;
+  return <div className={`status-card status-${kind}`} role={kind === "ordered" || kind === "waiting" ? "status" : "alert"}><Icon name={st.icon} size={18} /><div><strong>{st.label}{verdict ? ` · verdict ${verdict}` : ""}</strong><span>{text}</span></div></div>;
+}
+function VerdictBadge({ verdict }) {
+  const good = verdict === "GENUINE" || verdict === "REAL";
+  const bad = verdict === "INFLATED";
+  return <span className={`verdict-badge ${bad ? "verdict-bad" : good ? "verdict-good" : "verdict-warn"}`}>{bad ? "✕" : good ? "✓" : "!"} Discount {verdict}</span>;
+}
+const ROLE_INFO = {
+  parent: { label: "Parent", rule: "Approves requests. No personal limit.", color: "var(--role-parent)" },
+  teen: { label: "Teen", rule: "Orders alone up to the personal monthly limit.", color: "var(--role-teen)" },
+  child: { label: "Child", rule: "Every order needs a parent.", color: "var(--role-child)" },
+};
 
 function FormattedReply({ content, memberName, onMockPurchase }) {
   const [purchaseStates, setPurchaseStates] = useState({});
@@ -100,7 +133,7 @@ function FormattedReply({ content, memberName, onMockPurchase }) {
     setPurchaseStates((current) => ({ ...current, [rowIndex]: { status: "pending" } }));
     try {
       const result = await onMockPurchase({ ...product, memberName });
-      setPurchaseStates((current) => ({ ...current, [rowIndex]: { status: "done", message: result?.purchase?.pendingApproval ? "Waiting for parent approval" : "" } }));
+      setPurchaseStates((current) => ({ ...current, [rowIndex]: { status: "done", message: result?.purchase?.pendingApproval ? "Waiting for parent approval" : "", text: result?.message || "", verdict: result?.verdict || "" } }));
     } catch (error) {
       setPurchaseStates((current) => ({ ...current, [rowIndex]: { status: "error", message: error.message } }));
     }
@@ -112,31 +145,53 @@ function FormattedReply({ content, memberName, onMockPurchase }) {
       const cheapestRowIndex = pricedRows.length > 1 ? pricedRows.reduce((lowest, current) => current.product.priceEur < lowest.product.priceEur ? current : lowest, pricedRows[0]).rowIndex : null;
       const sameProductOffers = new Set(pricedRows.map(({ product }) => product.productName.toLocaleLowerCase("de-DE"))).size === 1;
       const cheapestLabel = sameProductOffers ? "Cheapest shop" : "Lowest price";
-      return <div className="reply-table-wrap" key={index}><table className="reply-table"><thead><tr>{header.map((cell, cellIndex) => <th key={cellIndex}><InlineText text={cell} /></th>)}{memberName && <th>MOCK BUY</th>}</tr></thead><tbody>{rows.map((row, rowIndex) => {
+      return <div className="offers" key={index}><div className="shop-text-label"><Icon name="info" size={14} /> Shop text (not instructions): product names and descriptions come from the catalogue.</div>{rows.map((row, rowIndex) => {
         const product = getProductFromRow(row);
         const state = purchaseStates[`${index}-${rowIndex}`];
         const isCheapest = rowIndex === cheapestRowIndex;
-        return <tr key={rowIndex} className={isCheapest ? "cheapest-option" : ""}>{header.map((_, cellIndex) => <td key={cellIndex}>{cellIndex === 0 ? <><InlineText text={row[cellIndex] || "—"} />{isCheapest && <span className="cheapest-tag">{cheapestLabel}</span>}</> : <InlineText text={row[cellIndex] || "—"} />}</td>)}{memberName && <td className="reply-action-cell">{product ? <><button className="mock-buy-button" type="button" disabled={state?.status === "pending" || state?.status === "done"} aria-label={`Record a mock purchase of ${product.productName} for ${memberName}`} onClick={() => recordFromRow(row, `${index}-${rowIndex}`)}>{state?.status === "pending" ? "Adding…" : state?.status === "done" ? (state.message ? "Requested" : "Added") : "Buy (mock)"}</button>{state?.status === "done" && state.message && <span className="mock-buy-error">{state.message}</span>}{state?.status === "error" && <span className="mock-buy-error" role="alert">{state.message}</span>}</> : "—"}</td>}</tr>;
-      })}</tbody></table></div>;
+        const key = `${index}-${rowIndex}`;
+        return <article key={rowIndex} className={`offer-card ${isCheapest ? "cheapest-option" : ""}`}>
+          <div className="offer-main">
+            <div className="offer-title"><InlineText text={row[0] || "—"} />{isCheapest && <span className="cheapest-tag">{cheapestLabel}</span>}</div>
+            <dl className="offer-facts">{header.map((h, cellIndex) => cellIndex === 0 ? null : <div key={cellIndex}><dt><InlineText text={h} /></dt><dd><InlineText text={row[cellIndex] || "—"} /></dd></div>)}</dl>
+          </div>
+          {memberName && <div className="offer-action">{product ? <>
+            <div className="offer-price">{money(product.priceEur)}</div>
+            <button className="mock-buy-button" type="button" disabled={state?.status === "pending" || state?.status === "done"} aria-label={`Record a mock purchase of ${product.productName} for ${memberName}`} onClick={() => recordFromRow(row, key)}>{state?.status === "pending" ? "Adding…" : state?.status === "done" ? (state.message ? "Requested" : "Ordered") : "Buy (mock)"}</button></> : null}</div>}
+          {state?.status === "done" && <StatusCard kind={state.message ? "waiting" : "ordered"} text={state.text || (state.message || "Mock purchase recorded.")} verdict={state.verdict} />}
+          {state?.status === "error" && <StatusCard kind={errorKind(state.message)} text={state.message} />}
+        </article>;
+      })}</div>;
     }
     if (block.type === "list") return <ul key={index}>{block.items.map((item, itemIndex) => <li key={itemIndex}><InlineText text={item} /></li>)}</ul>;
-    return <p key={index}><InlineText text={block.text} /></p>;
+    const vm = block.text.match(/verdict \*\*([A-Z_]+)\*\*/);
+    return <p key={index}>{vm && <VerdictBadge verdict={vm[1]} />}<InlineText text={block.text} /></p>;
   })}</div>;
 }
 
-function MemberCard({ member }) {
+function Budget({ label, remaining, spent, limit, big }) {
+  const percent = limit ? Math.min(100, (spent / limit) * 100) : 0;
+  return <div className={`budget ${big ? "budget-big" : ""}`}>
+    <div className="budget-label">{label}</div>
+    <div className="balance-amount">{money(remaining)} <small>left</small></div>
+    <div className="progress-track" role="progressbar" aria-label={`${label} used`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(percent)}><div className="progress-value" style={{ width: `${percent}%` }} /></div>
+    <div className="budget-foot"><span>{money(spent)} used</span><span>of {money(limit)}</span></div>
+  </div>;
+}
+
+function MemberCard({ member, me }) {
   const spent = Number(member.spentEur || 0);
   const hasCap = member.spendingLimitEur != null;
   const limit = hasCap ? Number(member.spendingLimitEur) : Number(member.familyCapEur || 0);
   const percent = limit ? Math.min(100, (spent / limit) * 100) : 0;
+  const info = ROLE_INFO[String(member.name || "").toLowerCase()] || ROLE_INFO[member.role] || ROLE_INFO.parent;
   return (
-    <article className="member-card">
+    <article className={`member-card ${me ? "is-me" : ""}`}>
       <div className="member-card-top">
-        <div className="avatar">{member.name?.slice(0, 1).toUpperCase()}</div>
-        <div className="member-name">{member.name}<span>{member.role}{hasCap ? "" : " · family cap only"}</span></div>
-        <span className="card-menu">•••</span>
+        <div className="avatar" style={{ background: info.color }}>{member.name?.slice(0, 1).toUpperCase()}</div>
+        <div className="member-name">{member.name}{me && <em> (you)</em>}<span>{member.role}{hasCap ? "" : " · family cap only"}</span></div>
       </div>
-      <div className="balance-label">WALLET BUDGET REMAINING</div>
+      <div className="balance-label">REMAINING</div>
       <div className="balance-amount">{money(member.remainingEur)}</div>
       <div className="progress-track"><div className="progress-value" style={{ width: `${percent}%` }} /></div>
       <div className="budget-foot"><span>{money(spent)} used</span><span>{hasCap ? `of ${money(limit)}` : `family ${money(member.familyRemainingEur)} left`}</span></div>
@@ -150,7 +205,7 @@ function ChatMessage({ message, onMockPurchase }) {
     <div className={`message-row ${assistant ? "assistant-row" : "user-row"}`}>
       {assistant && <div className="tiny-mark"><Icon name="spark" size={15} /></div>}
       <div className={`message-bubble ${assistant ? "assistant-bubble" : "user-bubble"}`}>
-        {assistant && <div className="message-label">SHOPPER</div>}
+        {assistant && <div className="message-label">SHOPPER AGENT</div>}
         <div className="message-copy">{assistant ? <FormattedReply content={message.content} memberName={message.memberName} onMockPurchase={onMockPurchase} /> : message.content}</div>
       </div>
     </div>
@@ -161,10 +216,17 @@ const ACCOUNTS = ["parent", "teen", "child"];
 const cap = (id) => id.charAt(0).toUpperCase() + id.slice(1);
 
 export default function ShopperApp() {
-  const [account, setAccount] = useState(() => { try { return localStorage.getItem("familyMember") || "parent"; } catch { return "parent"; } });
+  const [account, setAccount] = useState(() => { const asParam = new URLSearchParams(window.location.search).get("as"); if (ACCOUNTS.includes(asParam)) return asParam; try { return localStorage.getItem("familyMember") || "parent"; } catch { return "parent"; } });
   const accountRef = useRef(account);
   accountRef.current = account;
   const [offline, setOffline] = useState(false);
+  const [llmMode, setLlmMode] = useState("");
+  const [catalogue, setCatalogue] = useState("");
+  const [llmOpen, setLlmOpen] = useState(false);
+  const [llmInfo, setLlmInfo] = useState(null);
+  const [llmForm, setLlmForm] = useState({ providerId: "openai", baseUrl: "", model: "", apiKey: "" });
+  const [llmError, setLlmError] = useState("");
+  const [llmSaving, setLlmSaving] = useState(false);
   const api = (url, options = {}) => fetch(url, { ...options, headers: { ...(options.headers || {}), "X-Family-Member": accountRef.current } });
   const switchAccount = (id) => { try { localStorage.setItem("familyMember", id); } catch { /* ignore */ } setAccount(id); setError(""); };
   const [members, setMembers] = useState([]);
@@ -179,6 +241,8 @@ export default function ShopperApp() {
   const [connecting, setConnecting] = useState(false);
   const [authorizationUrl, setAuthorizationUrl] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [mineOpen, setMineOpen] = useState(true);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [memberName, setMemberName] = useState("");
   const [memberBudget, setMemberBudget] = useState("");
@@ -186,16 +250,9 @@ export default function ShopperApp() {
   const [memberError, setMemberError] = useState("");
   const endRef = useRef(null);
   useEffect(() => { refreshState(); }, [account]);
+  useEffect(() => { const q = new URLSearchParams(window.location.search).get("q"); if (q) sendMessage(q); }, []);
   const sampleMember = members[0];
-  const suggestions = sampleMember ? [
-    `Find headphones for ${sampleMember.name} under ${money(Number(sampleMember.remainingEur || 0))}`,
-    `Compare electric toothbrushes for ${sampleMember.name}`,
-    `What’s the best value for ${sampleMember.name}’s budget?`,
-  ] : [
-    "Find headphones for a family member under €60",
-    "Compare a few good electric toothbrushes",
-    "What’s the best value for a family member’s budget?",
-  ];
+  const suggestions = ["Der Hobbit", "headphones", "coffee machine", "school backpack"];
 
   async function refreshState() {
     try {
@@ -211,6 +268,8 @@ export default function ShopperApp() {
         const authState = await authResponse.json();
         setIdealoConnected(Boolean(authState.connected));
         setOffline(authState.mode === "offline-mock");
+        setLlmMode(authState.mode || "");
+        setCatalogue(authState.catalogue || "");
         setIdealoCredentialsSaved(Boolean(authState.credentialsSaved));
         if (authState.error) setError(authState.error);
       }
@@ -264,6 +323,42 @@ export default function ShopperApp() {
     }
   }
 
+  function fillLlmForm(info, providerId) {
+    const p = info.providers.find((x) => x.id === providerId) || info.providers[0];
+    const same = info.active.providerId === p.id;
+    setLlmForm({ providerId: p.id, baseUrl: same ? info.active.baseUrl : p.baseUrl, model: same ? info.active.model : p.defaultModel, apiKey: "" });
+  }
+  async function openLlmDialog() {
+    setLlmError("");
+    try {
+      const response = await api("/api/llm");
+      const info = await response.json();
+      if (!response.ok) throw new Error(info.error || "Could not load the model provider.");
+      setLlmInfo(info);
+      fillLlmForm(info, info.active.providerId);
+      setLlmOpen(true);
+    } catch (err) { setError(err.message); }
+  }
+  async function saveLlm(event) {
+    event.preventDefault();
+    setLlmSaving(true); setLlmError("");
+    try {
+      const response = await api("/api/llm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(llmForm) });
+      const info = await response.json();
+      if (!response.ok) throw new Error(info.error || "Could not save the provider.");
+      setLlmInfo(info); setLlmForm((f) => ({ ...f, apiKey: "" })); refreshState();
+    } catch (err) { setLlmError(err.message); } finally { setLlmSaving(false); }
+  }
+  async function forgetLlmKey() {
+    setLlmSaving(true); setLlmError("");
+    try {
+      const response = await api("/api/llm/key", { method: "DELETE" });
+      const info = await response.json();
+      if (!response.ok) throw new Error(info.error || "Could not forget the key.");
+      setLlmInfo(info); refreshState();
+    } catch (err) { setLlmError(err.message); } finally { setLlmSaving(false); }
+  }
+
   async function connectIdealo() {
     setConnecting(true);
     setError("");
@@ -291,11 +386,12 @@ export default function ShopperApp() {
   }
 
   async function approveRequest(requestId, action = "approve") {
-    setError("");
+    setError(""); setNotice("");
     try {
       const response = await api(`/api/family/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not approve this request.");
+      setNotice(action === "reject" ? "Request rejected by parent. Nothing was spent." : "Request approved. The order was placed (simulated).");
       await refreshState();
     } catch (err) { setError(err.message); }
   }
@@ -321,67 +417,79 @@ export default function ShopperApp() {
   }
 
   const spentTotal = members.reduce((sum, member) => sum + Number(member.spentEur || 0), 0);
+  const me = members.find((m) => String(m.name).toLowerCase() === account);
+  const info = ROLE_INFO[account];
+  const isParent = account === "parent";
+  const teenLimit = members.find((m) => String(m.name).toLowerCase() === "teen")?.spendingLimitEur;
+  const rule = account === "teen" && teenLimit != null ? `Orders alone up to ${money(Number(teenLimit))} / month; above that a parent decides.` : info.rule;
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><AppMark /><span>family<span className="brand-light">shopper</span></span></div>
-        <div className="nav-caption">YOUR SPACE</div>
-        <button className="nav-item active"><span className="nav-dot" />Shopping assistant</button>
-        <button className="nav-item" onClick={refreshState}><Icon name="wallet" size={18} />Family budgets</button>
-        <div className="side-bottom">
-          <div className="demo-note"><span className="demo-dot" /><div><strong>Demo mode</strong><small>Purchases are pretend only</small></div></div>
-          <div className="profile"><div className="profile-avatar">F</div><div><strong>Family space</strong><small>Personal shopper</small></div><span className="profile-more">•••</span></div>
+      <header className="topbar">
+        <div className="brand"><AppMark /><span>Family Shopper</span></div>
+        <div className="role-switch" role="radiogroup" aria-label="Signed in as (demo sign-in)">
+          {ACCOUNTS.map((id) => <button key={id} type="button" role="radio" aria-checked={account === id} className={`role-btn ${account === id ? "active" : ""}`} onClick={() => switchAccount(id)}><span className="role-avatar" style={{ background: ROLE_INFO[id].color }}>{cap(id).slice(0, 1)}</span>{cap(id)}</button>)}
         </div>
-      </aside>
-
-      <main className="main-area">
-        <header className="topbar"><label className="account-switch">Signed in as: <select value={account} onChange={(event) => switchAccount(event.target.value)}>{ACCOUNTS.map((id) => <option key={id} value={id}>{cap(id)}</option>)}</select></label><div className="breadcrumb">Family space <span>/</span> <strong>Shopping assistant</strong></div>{idealoConnected ? <div className="live-pill"><i /> idealo tools ready</div> : <button className="connect-button" onClick={connectIdealo} disabled={connecting}>{connecting ? "Checking…" : idealoCredentialsSaved ? "Check idealo access" : "Connect idealo"}</button>}</header>
-        {offline && <div className="offline-banner">Offline demo: idealo mock, no LLM</div>}
-        <div className="workspace">
-          <section className="chat-column">
-            <div className="page-heading"><div className="eyebrow"><Icon name="spark" size={15} /> YOUR FAMILY’S PERSONAL SHOPPER</div><h1>Find the right thing.<br /><span>For the right price.</span></h1><p>Thoughtful picks, compared for your family and their budget.</p></div>
-
-            <div className={`chat-panel ${messages.length ? "has-messages" : ""}`}>
-              {messages.length === 0 ? (
-                <div className="welcome-card">
-                  <div className="welcome-icon"><Icon name="spark" size={21} /></div>
-                  <div className="welcome-title">What are we looking for?</div>
-                  <div className="welcome-subtitle">Tell me what you need and who it’s for. I’ll compare current prices and find a fit.</div>
-                  <div className="suggestions">
-                    {suggestions.map((suggestion) => <button key={suggestion} className="suggestion" onClick={() => sendMessage(suggestion)}>{suggestion}<Icon name="arrow" size={15} /></button>)}
-                  </div>
+        <div className="top-actions">
+          <button className="ghost-button" onClick={openLlmDialog} disabled={!isParent} title={isParent ? "" : "Sign in as Parent to change the model provider"}>Model provider</button>
+          {idealoConnected ? <span className="live-pill"><i /> idealo tools ready</span> : <button className="ghost-button" onClick={connectIdealo} disabled={connecting}>{connecting ? "Checking…" : idealoCredentialsSaved ? "Check idealo access" : "Connect idealo"}</button>}
+        </div>
+      </header>
+      {offline ? <div className="offline-banner">Offline demo: idealo mock, no LLM</div> : llmMode && <div className="offline-banner">Model: {llmMode.replace("llm:", "")} · catalogue: {catalogue === "live" ? "live idealo" : "idealo mock"}</div>}
+      <div className="who-bar" style={{ "--who": info.color }}>
+        <div className="who-text"><span className="who-label">Signed in as</span><strong>{info.label}</strong><span className="who-rule">{rule}</span></div>
+        {me && <div className="who-money"><span>Your budget left</span><strong>{money(me.remainingEur)}</strong></div>}
+        {family && <div className="who-money"><span>Family budget left</span><strong>{money(family.remainingEur)}</strong></div>}
+      </div>
+      <main className="workspace">
+        <section className="chat-column" aria-label="Chat with the shopping agent">
+          <div className={`chat-panel ${messages.length ? "has-messages" : ""}`}>
+            {messages.length === 0 ? (
+              <div className="welcome-card">
+                <div className="welcome-title">What are we looking for?</div>
+                <div className="welcome-subtitle">Ask for a product. The agent compares offers and the family wallet decides whether you may buy.</div>
+                <div className="suggestions">
+                  {suggestions.map((suggestion) => <button key={suggestion} type="button" className="suggestion" onClick={() => sendMessage(suggestion)}>{suggestion}<Icon name="arrow" size={15} /></button>)}
                 </div>
-              ) : <div className="messages">{messages.map((message, index) => <ChatMessage key={`${index}-${message.role}`} message={message.role === "assistant" ? { ...message, memberName: cap(account) } : message} onMockPurchase={recordMockPurchase} />)}{busy && <div className="message-row assistant-row"><div className="tiny-mark"><Icon name="spark" size={15} /></div><div className="thinking"><i /><i /><i /><span>Comparing options</span></div></div>}<div ref={endRef} /></div>}
-            </div>
+              </div>
+            ) : <div className="messages">{messages.map((message, index) => <ChatMessage key={`${index}-${message.role}`} message={message.role === "assistant" ? { ...message, memberName: cap(account) } : message} onMockPurchase={recordMockPurchase} />)}{busy && <div className="message-row assistant-row" role="status"><div className="thinking"><i /><i /><i /><span>Comparing options…</span></div></div>}<div ref={endRef} /></div>}
+          </div>
 
-            {error && <div className="error-note"><Icon name="info" size={16} />{error}</div>}
-            {authorizationUrl && !idealoConnected && <div className="connect-note"><div><strong>Finish connecting idealo</strong><span>Sign in in idealo’s secure window, then return here.</span></div><a href={authorizationUrl} target="_blank" rel="noreferrer">Continue to idealo <Icon name="arrow" size={15} /></a></div>}
-            <form className="composer" onSubmit={(event) => { event.preventDefault(); sendMessage(); }}>
-              <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } }} placeholder="Ask for something your family needs…" rows="1" disabled={busy} />
-              <div className="composer-bottom"><span><Icon name="info" size={14} />Prices can change. Purchases are simulated.</span><button className="send-button" type="submit" disabled={!draft.trim() || busy} aria-label="Send message"><Icon name="arrow" size={19} /></button></div>
-            </form>
-            <div className="footnote">Search results from idealo · Mock purchases only · Nothing is ever ordered<br />Demo sign-in: accounts are simulated; in production the caller identity comes from TrustBoris.</div>
+          <div className="status-area" aria-live="polite">
+            {error && <div className="error-note" role="alert"><Icon name="info" size={16} />{error}</div>}
+            {notice && <div className="notice-note">{notice}</div>}
+          </div>
+          {authorizationUrl && !idealoConnected && <div className="connect-note"><div><strong>Finish connecting idealo</strong><span>Sign in in idealo’s secure window, then return here.</span></div><a href={authorizationUrl} target="_blank" rel="noreferrer">Continue to idealo <Icon name="arrow" size={15} /></a></div>}
+          <form className="composer" onSubmit={(event) => { event.preventDefault(); sendMessage(); }}>
+            <label htmlFor="chat-input" className="composer-label">Message to the shopping agent</label>
+            <textarea id="chat-input" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } }} placeholder="e.g. Der Hobbit, headphones…" rows="2" disabled={busy} />
+            <div className="composer-bottom"><span>Prices can change. Purchases are simulated.</span><button className="send-button" type="submit" disabled={!draft.trim() || busy}>{busy ? "Sending…" : "Send"} <Icon name="arrow" size={17} /></button></div>
+          </form>
+        </section>
+
+        <aside className="insights-column">
+          <details className="panel" open={mineOpen} onToggle={(e) => setMineOpen(e.currentTarget.open)}>
+            <summary><h2>Budgets</h2><button type="button" className="icon-button" onClick={(e) => { e.preventDefault(); setMemberError(""); setMemberModalOpen(true); }} aria-label="Add family member" title="Add family member"><Icon name="plus" size={17} /></button></summary>
+            {family && <Budget big label="Family budget this month" remaining={family.remainingEur} spent={family.spentEur} limit={family.capEur} />}
+            {members.map((member) => <MemberCard key={member.name} member={member} me={String(member.name).toLowerCase() === account} />)}
+            {members.length === 0 && <div className="empty-card">No budgets loaded yet.</div>}
+          </details>
+
+          <section className="panel">
+            <h2>Waiting for parent approval {pendingApprovals.length > 0 && <span className="activity-count">{pendingApprovals.length}</span>}</h2>
+            {pendingApprovals.length === 0 && <div className="empty-card">No requests waiting.</div>}
+            {pendingApprovals.map((r) => <div className="approval" key={r.requestId}><div className="purchase-info"><strong>{r.productName}</strong><small>{r.member} · {money(r.priceEur)}</small></div>
+              {isParent ? <div className="approval-actions"><button className="mock-buy-button" type="button" onClick={() => approveRequest(r.requestId)}>Approve</button><button className="secondary-button" type="button" onClick={() => approveRequest(r.requestId, "reject")}>Reject</button></div> : <small className="readonly-note">Read-only: only a parent can decide.</small>}</div>)}
           </section>
 
-          <aside className="insights-column">
-            <div className="section-heading"><div><span className="section-kicker">FAMILY</span><h2>Budget overview</h2></div><button className="icon-button" onClick={() => { setMemberError(""); setMemberModalOpen(true); }} aria-label="Add family member" title="Add family member"><Icon name="plus" size={17} /></button></div>
-            {family && <div className="empty-card">Family budget this month: {money(family.spentEur)} of {money(family.capEur)} spent, {money(family.remainingEur)} left</div>}
-            {members.map((member) => <MemberCard key={member.name} member={member} />)}
-            {members.length === 0 && <div className="empty-card">Add a family member to start tracking their demo budget.</div>}
-
-            {pendingApprovals.length > 0 && <div className="activity-card"><strong>Waiting for parent approval</strong>{pendingApprovals.map((r) => <div className="purchase-row" key={r.requestId}><div className="purchase-info"><strong>{r.productName}</strong><small>{r.member} · {money(r.priceEur)}</small></div><button className="mock-buy-button" type="button" disabled={account !== "parent"} title={account !== "parent" ? "Only a parent can decide" : ""} onClick={() => approveRequest(r.requestId)}>Approve</button><button className="mock-buy-button" type="button" disabled={account !== "parent"} onClick={() => approveRequest(r.requestId, "reject")}>Reject</button></div>)}</div>}
-
-            <div className="activity-heading"><div><span className="section-kicker">LOCAL LEDGER</span><h2>Mock purchases</h2></div><span className="activity-count">{purchases.length}</span></div>
-            <div className="activity-card">
-              {purchases.length ? purchases.slice().reverse().slice(0, 4).map((purchase) => <div className="purchase-row" key={purchase.id}><div className="purchase-icon"><Icon name="bag" size={17} /></div><div className="purchase-info"><strong>{purchase.productName}</strong><small>{purchase.member} · pretend purchase</small></div><span className="purchase-price">−{money(purchase.priceEur)}</span></div>) : <div className="empty-activity"><div className="empty-icon"><Icon name="bag" size={19} /></div><strong>No purchases yet</strong><span>When you record a mock purchase, it’ll show up here.</span></div>}
-              {purchases.length > 0 && <div className="activity-total"><span>Total simulated spend</span><strong>{money(spentTotal)}</strong></div>}
-            </div>
-
-            <div className="privacy-card"><div className="privacy-icon"><Icon name="wallet" size={17} /></div><div><strong>Your demo stays local</strong><p>Budgets and caps come from the Family Wallet; purchases are simulated.</p></div></div>
-          </aside>
-        </div>
+          <section className="panel">
+            <h2>Recent purchases <span className="activity-count">{purchases.length}</span></h2>
+            {purchases.length ? purchases.slice().reverse().slice(0, 4).map((purchase) => <div className="purchase-row" key={purchase.id}><div className="purchase-icon"><Icon name="bag" size={17} /></div><div className="purchase-info"><strong>{purchase.productName}</strong><small>{purchase.member} · simulated</small></div><span className="purchase-price">−{money(purchase.priceEur)}</span></div>) : <div className="empty-card">No purchases yet.</div>}
+            {purchases.length > 0 && <div className="activity-total"><span>Total simulated spend</span><strong>{money(spentTotal)}</strong></div>}
+          </section>
+        </aside>
       </main>
+      <footer className="footnote">Purchases are simulated; no real order is placed.<br />Demo sign-in: accounts are simulated; in production the caller identity comes from TrustBoris.</footer>
       {memberModalOpen && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !memberSaving) setMemberModalOpen(false); }}>
         <section className="member-modal" role="dialog" aria-modal="true" aria-labelledby="member-modal-title">
           <button className="modal-close" type="button" onClick={() => setMemberModalOpen(false)} disabled={memberSaving} aria-label="Close">×</button>
@@ -395,6 +503,31 @@ export default function ShopperApp() {
             <div className="budget-input"><span>€</span><input id="member-budget" type="number" min="0" max="1000000" step="0.01" value={memberBudget} onChange={(event) => setMemberBudget(event.target.value)} placeholder="60.00" required /></div>
             {memberError && <div className="modal-error" role="alert">{memberError}</div>}
             <div className="modal-actions"><button type="button" className="modal-cancel" onClick={() => setMemberModalOpen(false)} disabled={memberSaving}>Cancel</button><button type="submit" className="modal-save" disabled={memberSaving}>{memberSaving ? "Adding…" : "Add member"}</button></div>
+          </form>
+        </section>
+      </div>}
+      {llmOpen && llmInfo && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !llmSaving) setLlmOpen(false); }}>
+        <section className="member-modal" role="dialog" aria-modal="true" aria-labelledby="llm-modal-title">
+          <button className="modal-close" type="button" onClick={() => setLlmOpen(false)} disabled={llmSaving} aria-label="Close">×</button>
+          <div className="modal-eyebrow">MODEL PROVIDER</div>
+          <h2 id="llm-modal-title">Bring your own model</h2>
+          <p>Active: {llmInfo.providers.find((p) => p.id === llmInfo.active.providerId)?.label} · {llmInfo.active.model || "no model"} · {llmInfo.active.hasKey ? `key ends in ••••${llmInfo.active.keyLast4}` : "no key (offline demo)"}</p>
+          <form onSubmit={saveLlm}>
+            <label htmlFor="llm-provider">Provider</label>
+            <select id="llm-provider" value={llmForm.providerId} onChange={(event) => fillLlmForm(llmInfo, event.target.value)}>{llmInfo.providers.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
+            {(() => { const p = llmInfo.providers.find((x) => x.id === llmForm.providerId); return <>
+              <label htmlFor="llm-url">Base URL</label>
+              <input id="llm-url" autoComplete="off" value={llmForm.baseUrl} readOnly={!p?.editableBaseUrl} onChange={(event) => setLlmForm({ ...llmForm, baseUrl: event.target.value })} placeholder="https://…/v1" required />
+              {p?.unverified && <small>Unverified: check the base URL in your Nebius console.</small>}
+              {p?.note && <small>{p.note}</small>}
+            </>; })()}
+            <label htmlFor="llm-model">Model</label>
+            <input id="llm-model" autoComplete="off" value={llmForm.model} onChange={(event) => setLlmForm({ ...llmForm, model: event.target.value })} required />
+            <label htmlFor="llm-key">API key</label>
+            <input id="llm-key" type="password" autoComplete="off" value={llmForm.apiKey} onChange={(event) => setLlmForm({ ...llmForm, apiKey: event.target.value })} placeholder={llmInfo.active.hasKey ? "leave empty to keep the current key" : "paste your key"} />
+            <small>The key stays in this server's memory only; it is not saved to disk and is gone after a restart. Use a key you can revoke.</small>
+            {llmError && <div className="modal-error" role="alert">{llmError}</div>}
+            <div className="modal-actions"><button type="button" className="modal-cancel" onClick={forgetLlmKey} disabled={llmSaving || !llmInfo.active.hasKey}>Forget key</button><button type="submit" className="modal-save" disabled={llmSaving}>{llmSaving ? "Saving…" : "Save"}</button></div>
           </form>
         </section>
       </div>}

@@ -1,5 +1,5 @@
 # Author:    mikomeller
-# Version:   0.1.0
+# Version:   0.1.1
 # Filename:  pyproject.toml
 # Pathname:  pyproject.toml
 # Purpose:   Project metadata, dependencies and tool config (ruff, pytest) for family-shopper-agent; managed with uv
@@ -46,3 +46,5 @@ dev = [
 # existing helper scripts predate the 110-column rule; long argparse/gh lines are accepted for now
 "scripts/*.py" = ["E501"]
 "evals/*.py" = ["E501"]
+# the pitch generator embeds long HTML/text lines
+"pitch/*.py" = ["E501"]

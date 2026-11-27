@@ -1,5 +1,5 @@
 # Author:    mikomeller
-# Version:   0.1.0
+# Version:   0.1.1
 # Filename:  compose.yaml
 # Pathname:  compose.yaml
 # Purpose:   Run the Family Shopper app (UI at http://localhost:6274) and, on request, the boris CLI in Docker.
@@ -9,7 +9,7 @@ services:
       context: .
       dockerfile: docker/app/Dockerfile
     ports:
-      - "6274:6274"
+      - "127.0.0.1:6274:6274"   # host-local only: the demo sign-in is not authentication
     env_file:
       - path: .env
         required: false

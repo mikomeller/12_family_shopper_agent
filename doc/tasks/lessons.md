@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.6
+Version:   0.1.7
 Filename:  lessons.md
 Pathname:  doc/tasks/lessons.md
 Purpose:   Lessons learned and the rules that prevent repeating mistakes; review at the start of every session
@@ -42,3 +42,11 @@ Purpose:   Lessons learned and the rules that prevent repeating mistakes; review
   *Rule:* ask for the working folder before cloning anything (the old rule "confirm the working directory" applies to clones too).
 - **2026-11-27 — Ticket #25's formula was not sound.** `claimed_discount >= (list_price - 30_day_low) / list_price` reduces to `sale <= 30_day_low` and never tests the "was" price.
   *Rule:* check a collaborator ticket's formula with numbers before building it.
+- **2026-11-27 — A premise stayed unverified.** The owner believed Boris and OpenAI credentials were in a collaborator's branch; I did not say it was unverified until I checked. They were not there, and they must not be (public repo).
+  *Rule:* check a claimed location of secrets before planning on it; never ask for secrets to be committed.
+- **2026-11-27 — PR #56 was merged before the independent review** because of the deadline.
+  *Rule:* say so in the PR and the handover and run the review right after; with auto-merge on, the review happens before the `automerge` label is set.
+- **2026-11-27 — A smoke test asserted on wording changed after its last run.**
+  *Rule:* re-run the proof after the last edit, not before it.
+- **2026-11-27 — Docker: `uv run` inside the image tried to re-sync a read-only venv.**
+  *Rule:* set `UV_NO_SYNC=1` and use `PYTHONPATH` in the app image.

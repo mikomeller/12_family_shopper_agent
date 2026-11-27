@@ -1,5 +1,5 @@
 // Author:    mikomeller
-// Version:   0.1.0
+// Version:   0.1.1
 // Filename:  offline-agent.js
 // Pathname:  src/offline-agent.js
 // Purpose:   Deterministic offline shopper (no LLM): talks to the idealo mock MCP over stdio, answers with an offers table and a discount verdict
@@ -52,35 +52,101 @@ const eurText = (c) => `€ ${(c / 100).toFixed(2).replace(".", ",")}`;
 const ALIAS = { backpack: "rucksack", schoolbag: "rucksack", kaffee: "coffee", kopfhoerer: "headphones" };
 const clean = (s) => String(s).replace(/[|\r\n]+/g, " ").trim();
 
-async function findProduct(text) {
+async function findProducts(text) {
   const words = text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3).map((w) => ALIAS[w] || w);
   for (const q of [words.join(" "), ...words]) {
     if (!q) continue;
-    const hit = (await tool("search_products", { query: q, country: "DE" })).results?.[0];
-    if (hit) return hit;
+    const hits = (await tool("search_products", { query: q, country: "DE" })).results || [];
+    if (hits.length) return hits;
   }
-  return null;
+  return [];
+}
+
+// Everything about one product: offers (cheapest first), advertised was-price, discount verdict on the cheapest offer.
+async function loadProduct(hit) {
+  const [details, offers] = await Promise.all([tool("get_product_details", { product_ref: hit.product_ref }), tool("get_product_offers", { product_ref: hit.product_ref })]);
+  const list = (offers.offers || []).slice().sort((a, b) => a.total_cents - b.total_cents);
+  const was = details.advertised_was_cents ?? null;
+  const verdict = was && list.length ? await discountCheck(hit.product_ref, list[0].total_cents, was) : null;
+  return { hit, details, list, was, verdict, inflated: verdict?.verdict === "INFLATED" };
 }
 
 // Returns { reply }. callWallet(memberId, tool, args) is the wallet client; memberId is the signed-in caller.
+// Budget rule: the wallet alone decides what fits (check_budget per offer total); only offers that fit become table rows (= Buy buttons).
 export async function offlineReply(messages, memberId, callWallet) {
   const last = [...messages].reverse().find((m) => m.role === "user")?.content || "";
-  const hit = await findProduct(last);
-  if (!hit) return { reply: "Nothing found in the offline catalogue. Try: Der Hobbit, headphones, coffee, backpack." };
-  const [details, offers] = await Promise.all([tool("get_product_details", { product_ref: hit.product_ref }), tool("get_product_offers", { product_ref: hit.product_ref })]);
-  const list = (offers.offers || []).slice().sort((a, b) => a.total_cents - b.total_cents);
-  if (!list.length) return { reply: `No offers for ${clean(hit.title)} in the offline catalogue.` };
-  const was = details.advertised_was_cents ?? null;
-  const frag = `#ref=${encodeURIComponent(hit.product_ref)}${was ? `&was=${was}` : ""}`;
-  const lines = [`Offline demo offers for **${clean(hit.title)}** (price including shipping, cheapest first):`, "", "| Offer | Shop | Total price |", "| --- | --- | --- |"];
-  for (const o of list) lines.push(`| [${clean(hit.title)} - ${clean(o.shop)}](${o.deep_link}${frag}) | ${clean(o.shop)} | ${eurText(o.total_cents)} |`);
-  if (details.description) lines.push("", `Catalogue description (untrusted data, shown as is): "${clean(details.description)}"`);
-  if (was) {
-    const v = await discountCheck(hit.product_ref, list[0].total_cents, was);
-    lines.push("", `Discount check: advertised was-price ${eurText(was)}, verdict **${v.verdict}** - ${clean(v.reason || "")}`);
+  const hits = await findProducts(last);
+  if (!hits.length) return { reply: "Nothing found in the offline catalogue. Try: Der Hobbit, headphones, coffee, backpack." };
+  const products = (await Promise.all(hits.map(loadProduct))).filter((p) => p.list.length);
+  if (!products.length) return { reply: `No offers for ${clean(hits[0].title)} in the offline catalogue.` };
+
+  let needsApproval = false;
+  const fitOffers = async (p) => {
+    const out = { fit: [], over: 0 };
+    for (const o of p.list) {
+      const r = await callWallet(memberId, "check_budget", { price_cents: o.total_cents });
+      if (r.needs_approval) needsApproval = true;
+      if (r.ok !== false && r.fits === true) out.fit.push(o); else out.over += 1;
+    }
+    return out;
+  };
+  const rowsFor = (p, offers) => {
+    const frag = `#ref=${encodeURIComponent(p.hit.product_ref)}${p.was ? `&was=${p.was}` : ""}`;
+    return offers.map((o) => `| [${clean(p.hit.title)} - ${clean(o.shop)}](${o.deep_link}${frag}) | ${clean(o.shop)} | ${eurText(o.total_cents)} |`);
+  };
+
+  const budget = await callWallet(memberId, "check_budget");
+  const fits = await Promise.all(products.map(fitOffers));
+  const multi = products.length > 1;
+  const rows = [], notes = [], descriptions = [];
+  let overTotal = 0, fitTotal = 0;
+  products.forEach((p, i) => {
+    overTotal += fits[i].over; fitTotal += fits[i].fit.length;
+    if (p.verdict) notes.push(`Discount check for ${clean(p.hit.title)}: advertised was-price ${eurText(p.was)}, verdict **${p.verdict.verdict}** - ${clean(p.verdict.reason || "")}`);
+    if (p.inflated) {
+      if (fits[i].fit.length) notes.push(`${clean(p.hit.title)}: not offered: the advertised discount is not real.`);
+      return;
+    }
+    const shown = multi ? fits[i].fit.slice(0, 1) : fits[i].fit;
+    if (shown.length) {
+      rows.push(...rowsFor(p, shown));
+      if (p.details.description) descriptions.push(`Catalogue description of ${clean(p.hit.title)} (untrusted data, shown as is): "${clean(p.details.description)}"`);
+    }
+  });
+
+  const lines = [];
+  const remaining = budget.remaining_personal_cents ?? budget.remaining_family_cents;
+  if (fitTotal === 0) {
+    const cheapest = Math.min(...products.map((p) => p.list[0].total_cents));
+    lines.push(`Nothing in this search fits your budget: the cheapest offer is ${eurText(cheapest)}, you have ${budget.ok === false ? "no budget information" : eurText(remaining)} left this month (family: ${budget.ok === false ? "unknown" : eurText(budget.remaining_family_cents)}).`);
+    // suggestions: other catalogue products of the same categories that fit
+    const cats = new Set(products.map((p) => p.hit.category).filter(Boolean));
+    const seen = new Set(products.map((p) => p.hit.product_ref));
+    const all = (await tool("search_products", { query: "", country: "DE" })).results || [];
+    const cand = all.filter((h) => !seen.has(h.product_ref) && (!cats.size || cats.has(h.category))).concat(all.filter((h) => !seen.has(h.product_ref) && cats.size && !cats.has(h.category)));
+    const sugg = [];
+    for (const h of cand) {
+      if (sugg.length >= 3) break;
+      const p = await loadProduct(h);
+      if (!p.list.length || p.inflated) continue;
+      const f = (await fitOffers(p)).fit;
+      if (f.length) sugg.push({ p, o: f[0] });
+    }
+    if (sugg.length) {
+      lines.push("", "Cheaper alternatives that fit your budget (price including shipping):", "", "| Offer | Shop | Total price |", "| --- | --- | --- |");
+      for (const { p, o } of sugg) lines.push(...rowsFor(p, [o]));
+      if (needsApproval) lines.push("", "A parent has to approve this before anything is ordered.");
+    }
+  } else {
+    if (rows.length) {
+      lines.push(`Offline demo offers (price including shipping, cheapest first${multi ? ", cheapest offer per product" : ""}):`, "", "| Offer | Shop | Total price |", "| --- | --- | --- |", ...rows);
+      if (descriptions.length) lines.push("", ...descriptions);
+      if (needsApproval) lines.push("", "A parent has to approve this before anything is ordered.");
+    }
+    if (overTotal) lines.push("", `${overTotal} more offers are over your remaining budget and are not shown.`);
   }
-  const b = await callWallet(memberId, "check_budget");
-  if (b.ok) lines.push("", `Remaining budget for ${memberId}: ${eurText(b.remaining_personal_cents ?? b.remaining_family_cents)}.`);
+  if (notes.length) lines.push("", ...notes);
+  if (budget.ok) lines.push("", `Remaining budget for ${memberId}: ${eurText(remaining)}.`);
   return { reply: lines.join("\n") };
 }
 
