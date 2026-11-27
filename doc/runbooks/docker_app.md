@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.0
+Version:   0.1.1
 Filename:  docker_app.md
 Pathname:  doc/runbooks/docker_app.md
 Purpose:   Run the Family Shopper app (and optionally boris) in Docker; endpoint, reset, keys, verification status
@@ -21,6 +21,7 @@ Design: one image (Node 22 + Python 3.12 via uv + locked deps). The Vite **dev s
 4. Pick up code changes (source is copied at build time): `docker compose up -d --build app`
 5. Reset the wallet: `docker compose down && docker volume rm 12_family_shopper_agent_app-data && docker compose up -d app`
    (the volume name is prefixed with the compose project name; check `docker volume ls`).
+   Or, for the demo: set `ALLOW_DEMO_RESET=1` (already set for the `app` service in `compose.yaml`; off by default, the endpoint then returns 404). "Play again" in the story UI calls `POST /api/demo/reset` (parent only, body `{"confirm":"reset-demo-wallet"}`). It runs `scripts/reset_demo_wallet.py`, which in one transaction deletes all orders and approval requests and restores the caps (400/50/20). The database file, the members and the tokens stay; no restart. To disable it, remove `ALLOW_DEMO_RESET` from `compose.yaml` and run `docker compose up -d --force-recreate app`. It is not a chat tool: the model cannot call it.
 6. OpenAI key (optional; without it the app runs in offline mock mode): create `.env` in the repo root with
    `OPENAI_API_KEY=sk-...` (optionally `WALLET_TOKEN_SECRET=...`), then `docker compose up -d --force-recreate app`.
    `.env` is excluded from the image by `.dockerignore`; compose passes it at run time. A missing `.env` is fine.

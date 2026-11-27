@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller, rhaveen-sa
-Version:   0.1.6
+Version:   0.1.7
 Filename:  demo_script.md
 Pathname:  doc/demo/demo_script.md
 Purpose:   Presenter script for the 3 minute pitch: timeline, five live steps in the browser, fallback,
@@ -44,13 +44,16 @@ Say every refusal out loud: what was refused, why and how much is left.
 **Not verified in the browser yet.** Steps 2 and 5 follow the server code: the wallet checks every offer against the caller's budget and the
 assistant lists only offers that fit; the parent sees the headphones as INFLATED and not offered for purchase. These were checked through the
 offline assistant script and headless screenshots, not clicked by a person. Rehearse all five steps once and fix this table if the screen differs.
-HTTP smoke tests: `node scripts/ui_wallet_smoke.mjs` (32 steps) and `node scripts/offline_agent_budget_check.mjs` (6 of 6).
+HTTP smoke tests: `DEMO_RESET=1 FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs` (67 of 67 with `scripts/fake_llm.mjs` running and the server started with `ALLOW_DEMO_RESET=1`) and `node scripts/offline_agent_budget_check.mjs` (10 of 10), last run 2026-11-27 late evening.
 
 ## Guided story in the browser (`?story=1`, "Play the story"), three cases
 Open `http://localhost:6274/?story=1` and press "Play the story". Real API calls, a decision trail; the TrustBoris steps are simulated and labelled so.
 - **Case 1, Child, within the budget.** *Der Hobbit*: Shop A at 10,99 € is highlighted, ordered, no parent needed, 9,01 € left.
 - **Case 2, Child, above the budget.** Board game 30,98 €: refused with the reason and the amount left. Child asks a parent, Parent approves. Family budget 358,03 € left, the child's own budget 0,00 €.
 - **Case 3, Teen, above the budget** (added 2026-11-27 evening; replayed in headless Chrome on 2026-11-27 evening: 14 steps passed; wallet afterwards: three orders, child 0,00 €, teen 0,00 €, family 278,04 € left). Signed in as Teen, the story asks for the coffee machine at 79,99 € (genuine discount, was 99,99 €), above the teen's 50 €. The audience sees the refusal "This exceeds teen's monthly limit; 50.00 € left this month. A parent can step in.", then Teen asks a parent, then Parent steps in and approves. The order counts against the teen's budget (0,00 € left) and the family budget (278,04 € left when played after cases 1 and 2).
+- **What the screen shows (PR #74).** A "now" banner ("Case x of 3 · Step y of 14", case title, one sentence, Stop button); the decision trail in three collapsible cases with outcome chips; budgets stay in view and changed figures flash; at the end a "Story finished" summary (case, what was asked, what the trust layer decided, who paid) and "Budgets after the story"; story messages in the chat carry a "Story" tag.
+- **Play again** resets the demo wallet after a confirmation ("Reset the demo wallet and play again?", focus on Cancel). Needs `ALLOW_DEMO_RESET=1` (set in `compose.yaml`).
+- **Pre-demo check:** `node scripts/story_replay.mjs http://localhost:6274/` exits 0 only when "Story finished" appears (verified 2026-11-27 late evening on a clean and on a used wallet). A human click-through is still not done.
 - Fallback: `PYTHONPATH=src uv run python scripts/demo.py`. Its scene 2 already shows the teen asking a parent for the coffee machine.
 
 ## If the browser fails
