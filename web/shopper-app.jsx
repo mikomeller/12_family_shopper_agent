@@ -1,6 +1,6 @@
 /*
 Author:    rodrigo, mikomeller, rhaveen-sa
-Version:   0.2.0
+Version:   0.2.1
 Filename:  shopper-app.jsx
 Pathname:  web/shopper-app.jsx
 Purpose:   React UI of the Family Shopper web app: account switcher, chat with the shopping agent, offers, budgets as spending rings,
@@ -70,6 +70,31 @@ function Ring({ arcs, size = 72, stroke = 9, center, label, still }) {
     </svg>
     {center && <div className="ring-center">{center}</div>}
   </div>;
+}
+
+// Light and dark mode: follows the system until the user picks one; the choice is kept in localStorage.
+function useTheme() {
+  const media = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  const [choice, setChoice] = useState(() => { try { return localStorage.getItem("fs-theme") || "auto"; } catch { return "auto"; } });
+  const [systemDark, setSystemDark] = useState(Boolean(media?.matches));
+  useEffect(() => { if (!media) return undefined; const h = (e) => setSystemDark(e.matches); media.addEventListener("change", h); return () => media.removeEventListener("change", h); }, []);
+  useEffect(() => {
+    const root = document.documentElement;
+    if (choice === "auto") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", choice);
+    try { if (choice === "auto") localStorage.removeItem("fs-theme"); else localStorage.setItem("fs-theme", choice); } catch { /* private mode */ }
+  }, [choice]);
+  const dark = choice === "dark" || (choice === "auto" && systemDark);
+  return { dark, toggle: () => setChoice(dark ? "light" : "dark") };
+}
+
+function ThemeButton() {
+  const { dark, toggle } = useTheme();
+  const label = dark ? "Switch to light mode" : "Switch to dark mode";
+  return <button type="button" className="theme-button" onClick={toggle} aria-label={label} title={label}>
+    {dark
+      ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+      : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>}
+  </button>;
 }
 
 function AppMark() {
@@ -655,6 +680,7 @@ export default function ShopperApp() {
           {ACCOUNTS.map((id) => <button key={id} type="button" role="radio" aria-checked={account === id} className={`role-btn ${account === id ? "active" : ""}`} onClick={() => switchAccount(id)}><span className="role-avatar" style={{ background: ROLE_INFO[id].color }}>{cap(id).slice(0, 1)}</span>{cap(id)}{id === "parent" && pendingApprovals.length > 0 && <span className="role-badge">{pendingApprovals.length} waiting</span>}</button>)}
         </div>
         <div className="top-actions">
+          <ThemeButton />
           <button className="ghost-button" type="button" onClick={playStory} disabled={story.running || busy}>▶ Play the story</button>
           <button className="ghost-button" onClick={openLlmDialog} disabled={!isParent} title={isParent ? "" : "Only a parent can change this"}>Model provider</button>
           {idealoConnected ? <span className="live-pill"><i /> idealo tools ready</span> : <button className="ghost-button" onClick={() => connectIdealo(false)} disabled={connecting}>{connecting ? "Checking…" : idealoCredentialsSaved ? "Check idealo access" : "Connect idealo"}</button>}

@@ -1,6 +1,6 @@
 /*
 Author:    mikomeller, rodrigo, rhaveen-sa
-Version:   0.2.0
+Version:   0.2.1
 Filename:  styles.css
 Pathname:  web/styles.css
 Purpose:   Styles of the Family Shopper web app in the "Rings" design (same system as pitch/pitch.html and doc/design/website_design.md):
@@ -15,12 +15,19 @@ Purpose:   Styles of the Family Shopper web app in the "Rings" design (same syst
   --shadow:0 2px 12px rgba(0,0,0,.05);--shadow-lg:0 12px 40px rgba(0,0,0,.08);--glass:rgba(245,245,247,.78);
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
   color:var(--ink);background:var(--bg);color-scheme:light dark;-webkit-font-smoothing:antialiased}
-@media(prefers-color-scheme:dark){:root{
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){
   --bg:#000;--surface:#1c1c1e;--surface-2:#2c2c2e;--ink:#f5f5f7;--muted:#a1a1a6;--soft:#8e8e93;--line:#38383a;
   --accent:#0a84ff;--accent-ink:#fff;--accent-soft:#0a84ff22;
   --teen:#0a84ff;--teen2:#64d2ff;--child:#30d158;--child2:#a8e063;--fam:#ff9f0a;--fam2:#ffd60a;
   --ok-bg:#30d15822;--ok-ink:#5be37f;--ok-line:#30d15866;--warn-bg:#ff9f0a22;--warn-ink:#ffc266;--warn-line:#ff9f0a66;--bad-bg:#ff453a22;--bad-ink:#ff7a70;--bad-line:#ff453a66;
   --shadow:none;--shadow-lg:0 12px 40px rgba(0,0,0,.5);--glass:rgba(0,0,0,.72)}}
+:root[data-theme=dark]{color-scheme:dark;
+  --bg:#000;--surface:#1c1c1e;--surface-2:#2c2c2e;--ink:#f5f5f7;--muted:#a1a1a6;--soft:#8e8e93;--line:#38383a;
+  --accent:#0a84ff;--accent-ink:#fff;--accent-soft:#0a84ff22;
+  --teen:#0a84ff;--teen2:#64d2ff;--child:#30d158;--child2:#a8e063;--fam:#ff9f0a;--fam2:#ffd60a;
+  --ok-bg:#30d15822;--ok-ink:#5be37f;--ok-line:#30d15866;--warn-bg:#ff9f0a22;--warn-ink:#ffc266;--warn-line:#ff9f0a66;--bad-bg:#ff453a22;--bad-ink:#ff7a70;--bad-line:#ff453a66;
+  --shadow:none;--shadow-lg:0 12px 40px rgba(0,0,0,.5);--glass:rgba(0,0,0,.72)}
+:root[data-theme=light]{color-scheme:light}
 *{box-sizing:border-box}body{margin:0;min-width:320px;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5}
 button,textarea,select,input{font:inherit}button{cursor:pointer}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
@@ -40,6 +47,8 @@ h1,h2{margin:0;letter-spacing:-.02em}h2{font-size:17px;font-weight:700}
 .ghost-button,.secondary-button{min-height:36px;padding:0 14px;border:0;border-radius:999px;background:var(--surface);color:var(--accent);font-weight:600;font-size:14px;box-shadow:var(--shadow)}
 .ghost-button:hover:not(:disabled),.secondary-button:hover{background:var(--accent-soft)}
 .ghost-button:disabled{opacity:.45;cursor:not-allowed}
+.theme-button{display:grid;place-items:center;width:36px;height:36px;padding:0;border:0;border-radius:999px;background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.theme-button:hover{background:var(--accent-soft)}
 .secondary-button{color:var(--ink);border:1px solid var(--line);box-shadow:none}
 .live-pill{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 14px;border-radius:999px;background:var(--ok-bg);color:var(--ok-ink);font-weight:600;font-size:14px}
 .live-pill i{width:8px;height:8px;border-radius:50%;background:var(--child);box-shadow:0 0 0 3px var(--ok-line)}
