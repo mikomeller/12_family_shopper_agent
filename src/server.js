@@ -109,7 +109,8 @@ async function answer(messages) {
       purchaseTool,
     ];
     let response = await client.responses.create({ model, instructions, input: messages, tools });
-    for (let turn = 0; turn < 6; turn += 1) {
+    const maxToolRounds = 12;
+    for (let turn = 0; turn < maxToolRounds; turn += 1) {
       const calls = response.output.filter((item) => item.type === "function_call");
       if (!calls.length) return { reply: response.output_text || "I couldn't prepare a response. Please try again.", memberName };
       const outputs = [];
@@ -127,7 +128,7 @@ async function answer(messages) {
       }
       response = await client.responses.create({ model, instructions, input: [...response.output, ...outputs], tools });
     }
-    return { reply: response.output_text || "I hit the tool-call limit. Please try again.", memberName };
+    return { reply: response.output_text || `I couldn't finish comparing offers within ${maxToolRounds} tool rounds. Try narrowing the search or asking for fewer options.`, memberName };
   } finally {
     await connection.client.close().catch(() => {});
   }
