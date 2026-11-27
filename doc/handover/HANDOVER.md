@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.3
+Version:   0.1.4
 Filename:  HANDOVER.md
 Pathname:  doc/handover/HANDOVER.md
 Purpose:   Handover for whoever continues 12_family_shopper_agent (person or Claude Code session):
@@ -13,7 +13,7 @@ Work only in this folder (owner decision 2026-11-27); ask before cloning anywher
 ```bash
 cd ~/Documents/M1_20230921/src/genAI/12_family_shopper_agent
 uv sync                                        # install dependencies
-uv run pytest -q                               # expected: 144 passed, 13 skipped
+uv run pytest -q                               # expected: 152 passed, 13 skipped
 uv run python scripts/demo.py                  # offline demo, ends: DEMO OK: 5/5 scenes
 mkdir -p .claude/agents && cp doc/agents/*.md .claude/agents/   # install the agent definitions (once, and after every change)
 claude --agent orchestrator                    # orchestrator session with Opus/Sonnet subagents
@@ -32,17 +32,21 @@ through our own Family Wallet MCP, which enforces personal and family monthly ca
 | Repo (public), labels, milestones, Project, issues | done; `setup_github.py` run live: 7 epics + 10 stories, 30 links, 0 failures; later E7 (#45), #46-#48 and new stories #51-#55 (linked to their epics); `backlog.json` v0.1.4 (49 issues); ticket #25 under Epic #45 with the design assessment as comment |
 | CI `.github/workflows/ci.yml` + automerge (label `automerge`, squash) | done; verified live on PR #44 (0c6de28), PR #49 (55513dc), #50 and #56 (merge commit fe056fb); `main` has no branch protection |
 | Wallet design, server (8 tools: new `reject_request`, parent only; status `rejected`; `list_requests` accepts `rejected`; old databases migrated in `init_db`; story #51), seed script | on `main`; seed script has no guard before wiping the db |
-| Cap and contract tests L1 + L2 | 72 of 72 pass (`evals/results/2026-11-27_l1_l2.md`); full suite `uv run pytest -q` 144 passed, 13 skipped; `uv run ruff check .` clean |
-| idealo mock + fixtures (one injection) | on `main`; real idealo response shapes unverified |
+| Cap and contract tests L1 + L2 | 72 of 72 pass (`evals/results/2026-11-27_l1_l2.md`); full suite `uv run pytest -q` 152 passed, 13 skipped; `uv run ruff check .` clean |
+| idealo mock + fixtures | on `main`; 13 products (was 4), fictional shops, valid-check-digit EANs, 30-day histories, one product per discount verdict, two injection texts; data INVENTED; real idealo response shapes and prices unverified |
 | Discount check (`check_discount`, Epic E7, ticket #25) | designed and built; DC-01…DC-19 pass; corrected design `doc/design/discount_check.md` |
 | Offline demo `scripts/demo.py`, `doc/demo/demo_script.md` | `DEMO OK: 5/5 scenes`; demo script has a browser variant (not yet tried by anyone) |
 | Boris system prompt and runbooks | written; every Boris dashboard step unverified |
 | Boris CLI in Docker (`docker/boris/`) | CLI 0.1.35 runs; image now contains the Docker client, `boris doctor` shows Docker OK; `boris login` not done (owner); the boris service mounts `/var/run/docker.sock` |
-| Web UI (collaborator PR #33, Node/React, OpenAI) | merged; wallet-wired; simulated family accounts (account switcher Parent / Teen / Child, header `X-Family-Member`, 403 on a mismatching `memberName`, 401 without header); offline chat mode without `OPENAI_API_KEY` (`mode: "offline-mock"`); INFLATED blocks in the purchase path; `node scripts/ui_wallet_smoke.mjs` 17 of 17 (also via Docker); not tested: chat with a real OpenAI key, live idealo OAuth, UI in a browser; `src/cli.js` (`npm start`) still uses its own float budget file and bypasses the wallet (story #53) |
-| Full application in Docker (story #54) | `docker compose up -d --build app` serves `http://localhost:6274`; wallet db in volume `app-data`; runbook `doc/runbooks/docker_app.md`; container currently running on the owner's Mac |
+| Web UI (collaborator PR #33, Node/React, OpenAI) | merged; wallet-wired; simulated family accounts (account switcher Parent / Teen / Child, header `X-Family-Member`, 403 on a mismatching `memberName`, 401 without header); offline chat mode without `OPENAI_API_KEY` (`mode: "offline-mock"`); INFLATED blocks in the purchase path; `node scripts/ui_wallet_smoke.mjs` 32 offline steps, 32 of 32 via Docker; redesigned (role switcher, offer cards, status cards, budgets panel, dark theme, `?as=` / `?q=` demo links); `/api/state` and chat context are read as the signed-in member; not tested: a real OpenAI or Nebius key, live idealo OAuth, UI clicked through in a browser (only headless screenshots at 1280px); `src/cli.js` (`npm start`) still uses its own float budget file and bypasses the wallet (story #53) |
+| Full application in Docker (story #54) | `docker compose up -d --build app` serves `http://localhost:6274` (published on `127.0.0.1` only; rebuilt, offline smoke 32 of 32); wallet db in volume `app-data`; runbook `doc/runbooks/docker_app.md`; container currently running on the owner's Mac |
 | Eval harness (stories #37-#39) | `evals/harness.py`, `drivers.py`, scenarios S-01...S-13, `test_l3_scenarios.py`, `test_l4_gating.py`, `run_report.py`; scripted and adversarial driver at the tool layer: task 3/3, safety 3/3 (`evals/results/2026-11-27_l3_l4.md`); L4 is a SIMULATION of Boris gating; 13 tests skip without an LLM key, LLM driver is a stub |
 | Orchestrator + 5 subagents (source `doc/agents/`) | written and installed |
-| Independent review | earlier round: approve, no blocking findings; PR #56: review pending (merged first because of the deadline) |
+| Independent review | earlier round: approve; PR #56 (merged before review): "changes required", two blocking findings in the web UI purchase path (B1 discount check failed open, B2 client named the price); both fixed in PR #59 and re-attacked by the reviewer: approve, nothing blocking; PR #59 merged by auto-merge, CI green, merge commit a31a110 |
+| Budget-aware offers (owner's bug "earphones for 299 € with a 20 € limit") | wallet decides per offer (`check_budget(price_cents)` → `fits`); offline assistant lists only fitting offers; LLM tool path filters `get_product_offers` (`enforceBudget`, fails closed); `node scripts/offline_agent_budget_check.mjs` 6 of 6; limits: mock search results carry no price, live catalogue not filtered, alternatives are only affordable items |
+| Server-verified purchases | mock catalogue: known `productRef` needed; price, shop, link, name and was-price from the catalogue; differing client price refused (409); only GENUINE and NOT_BEST_PRICE proceed; live catalogue purchases refused (501) unless `ALLOW_UNVERIFIED_LIVE_PURCHASES=1` (unverified path) |
+| Bring your own model provider (story #58) | `src/llm-provider.js` + parent-only "Model provider" dialog: OpenAI / Codex API key, Nebius Token Factory, any OpenAI-compatible endpoint; key in server memory only; tested only against `scripts/fake_llm.mjs`: `FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs` 43 of 43; ChatGPT/Codex subscription OAuth not built |
+| Pitch deck `pitch/` (owner) | added by the owner, commit 0f82ed1, merged with PR #59; not edited by the agents; `pitch/*.py` exempt from the line-length lint rule |
 | Not done | Boris agent in Agent Builder, Boris login, identity spike #4, idealo live smoke test #3, L3/L4 with an LLM agent and Boris, ADR 0001, OpenAI key / idealo sign-in / Boris connection details from the owner (#55) |
 
 ## How the orchestration works
@@ -82,6 +86,9 @@ makes it the main session. To make it the default, add `{"agent": "orchestrator"
 | 2026-11-27 owner: a parent can reject a request | tool `reject_request`; a rejected request never becomes an order (story #51) |
 | 2026-11-27 owner: an INFLATED discount BLOCKS the order | enforced in the web UI server purchase path and in system prompt rule 8; the wallet cannot verify a discount (no price history), so a misbehaving agent is limited only by the caps (story #52) |
 | 2026-11-27: web UI family accounts are a demo sign-in | production identity must come from TrustBoris (story #53) |
+| 2026-11-27: the server, not the client, names price and discount | review finding B2; INFLATED and unverifiable discounts blocked; live-catalogue purchases refused until the price can be verified |
+| 2026-11-27: the wallet decides whether an offer fits the caller's budget | owner's bug report; every scenario set needs a "what is offered" check per role |
+| 2026-11-27: model key held in server memory only, API keys only (no OAuth) | key never leaves the process; private and link-local base URLs refused |
 | Questions to the owner are numbered points | owner preference |
 
 ## Open decisions (for the owner)
@@ -98,9 +105,9 @@ makes it the main session. To make it the default, add `{"agent": "orchestrator"
 - Whether Boris forwards the caller identity to MCP tools (spike, P0) and what exactly fails with Boris off.
 - Every Boris dashboard step in `doc/runbooks/boris_agent_setup.md`; the Boris login (`--device`); commands that host agents need the docker CLI in the image (not done).
 - What idealo's real responses and price history contain (the mock shapes are guesses).
-- Web UI: the chat endpoint with a real OpenAI key and idealo OAuth; the UI clicked through in a browser.
+- Web UI: the chat with a real OpenAI key and a real Nebius key (the Nebius base URL is from its docs page; the default model name is a guess); idealo OAuth; the UI clicked through in a browser (not seen rendered: purchase status cards, approve/reject with a pending request, light theme, 390px phone with data, provider dialog, keyboard focus); the `ALLOW_UNVERIFIED_LIVE_PURCHASES` path; LLM-mode identity under a real model.
 - L3/L4 with an LLM agent or TrustBoris (LLM driver is a stub; L4 is a simulation).
-- The result of the independent review of PR #56 (pending).
+- Review result: PR #59 approved, nothing blocking (the review of PR #56 had said changes required; fixed).
 - Boris connection details, OpenAI key and idealo sign-in: checked today, branch `rodrigo-agent` and PR #33 contain none of them (`.env.example` has an empty key; idealo tokens are in the git-ignored `.data/idealo-oauth.json` on the machine that signed in). Asked from the owner in #55; secrets must never be pushed to this public repo.
 - The subagent `tools` lists use Claude Code's tool names as documented on 2026-11-27.
 
@@ -116,6 +123,9 @@ makes it the main session. To make it the default, add `{"agent": "orchestrator"
 | `boris` service mounts `/var/run/docker.sock` | that container controls the host's Docker; weakens isolation | use only on request, only that service |
 | The Docker app serves the Vite dev server | not a production build | demo use only |
 | Wallet cannot stop an injected quantity (eval finding: a misbehaving teen agent buys 2 backpacks within the 50 EUR cap) | spend up to the caps | only the caps limit it; system prompt rules |
+| Open reviewer remarks (non-blocking) | `GET /api/llm` readable by every member (base URL, model, last 4 key characters); teen and child see family-wide totals; `get_product_details` / `get_product_price_history` not budget-filtered (no offers inside); token TTL of 1 day never refreshed by the Node server (after 24 h wallet calls fail until restart); migration re-reads schema outside the transaction; `uv:latest` unpinned in the app image; seed script wipes the db without a guard | fix in the next round; restart the server after 24 h until then |
+| Budget filter gaps | mock search results carry no price and the live catalogue is not filtered, so those offers are not filtered; alternatives are only affordable items | the wallet still refuses any order over budget |
+| Live purchases refused (501) | the live idealo catalogue cannot be bought through the UI | live idealo verification (#3), then enable |
 | Git from the Claude desktop sandbox | lock files left in `.git` | run git only in your own terminal or Claude Code |
 
 ## Rules that always apply

@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.3
+Version:   0.1.4
 Filename:  pending.md
 Pathname:  doc/tasks/pending.md
 Purpose:   Pending tasks and next steps for 12_family_shopper_agent, in order, with owner and proof;
@@ -11,18 +11,28 @@ Purpose:   Pending tasks and next steps for 12_family_shopper_agent, in order, w
 Owner: **You** = a person at the keyboard · **Orch** = `claude --agent orchestrator` and its subagents.
 The board is the source of truth for stories; this file is the order to work in.
 
-## Next, in order (updated 2026-11-27 evening)
-1. (You) Supply the OpenAI key, the idealo sign-in and the Boris connection details (#55). They are in no branch and must never be pushed to this public repo.
+## Next, in order (updated 2026-11-27 late evening)
+1. (You) Issue #55, numbered: 1. OpenAI or Nebius key: enter it in the "Model provider" dialog or `.env` (never commit it). 2. idealo: sign in with "Connect idealo" (live-catalogue purchases are refused for now). 3. Boris connection details.
 2. (You) `boris login` in the container (`--device`) and create the agent in Agent Builder per `doc/runbooks/boris_agent_setup.md`.
 3. (You) Spike #4: does Boris forward the caller identity?
 4. (Orch) Implement the LLM driver in `evals/drivers.py`, run L3 for real (`uv run pytest -q evals -m "l3 or l4"`), then L4 against Boris.
-5. (Orch) Fix the reviewer's findings for PR #56 (review pending; PR was merged first because of the deadline). Older remarks: seed script guard before it wipes the db; `personal_cap: null` not forbidden for teen/child; `deep_link` scheme not restricted; `list_orders("2026-13")` accepted; mock `check_discount` coerces with int(); token expiry parsing accepts `+`/`_` (harmless).
-6. (Orch) Rewire `src/cli.js` (`npm start`) to the wallet or remove it (removal needs the owner's go).
-Also open: source of `sale_days` (owner); try the UI in a browser (You).
+5. (Orch) Live idealo verification (smoke test #3) so live-catalogue purchases can be enabled (now refused with 501).
+6. (Orch) Open reviewer remarks (non-blocking): `GET /api/llm` readable by every member; teen and child see family-wide totals; `get_product_details` / `get_product_price_history` not budget-filtered; token TTL of 1 day never refreshed by the Node server; migration re-reads schema outside the transaction; `uv:latest` unpinned in the app image; seed script guard before it wipes the db. Older remarks: `personal_cap: null` not forbidden for teen/child; `deep_link` scheme not restricted; `list_orders("2026-13")` accepted; mock `check_discount` coerces with int().
+7. (Orch) Rewire `src/cli.js` (`npm start`) to the wallet or remove it (removal needs the owner's go).
+8. (You) A real browser click-through of the UI (nobody has done it); scenario S-14 into the eval harness.
+Also open: source of `sale_days` (owner).
+
+## Proven today (2026-11-27 late evening)
+- [x] Independent review of PR #59: approve, nothing blocking; PR #59 merged (a31a110), CI green. The blocking findings B1 and B2 of the PR #56 review are fixed and were re-attacked.
+- [x] Budget-aware offers: `node scripts/offline_agent_budget_check.mjs` 6 of 6
+- [x] Provider path against a local fake server: `FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs` 43 of 43 (NOT a real OpenAI or Nebius key)
+- [x] Docker rebuilt, offline smoke 32 of 32 through `http://localhost:6274`
+- [x] `uv run pytest -q` 152 passed, 13 skipped; ruff clean; `scripts/demo.py` 5/5
+- [ ] Not proven: a real OpenAI key, a real Nebius key, live idealo OAuth, browser click-through, `ALLOW_UNVERIFIED_LIVE_PURCHASES` path
 
 ## Questions to the owner
-1. OpenAI key into `.env` (repo root, git-ignored)?
-2. idealo: copy `.data/idealo-oauth.json` from the machine that signed in, or click "Connect idealo" in the UI?
+1. OpenAI or Nebius key: enter it in the "Model provider" dialog or `.env` (repo root, git-ignored)?
+2. idealo: copy `.data/idealo-oauth.json` from the machine that signed in, or click "Connect idealo" in the UI (live-catalogue purchases are refused for now)?
 3. Where are the Boris connection details?
 
 Decided 2026-11-27: a parent can reject a request; INFLATED blocks the order.
@@ -76,6 +86,7 @@ Decided 2026-11-27: a parent can reject a request; INFLATED blocks the order.
 ## Step 8 — Demo and pitch, Epic E5 (docs-demo, then You)
 - [x] Demo script with exact prompts (`doc/demo/demo_script.md`) · [ ] "without Boris" comparison · [ ] pitch outline
 - [ ] Two full dry runs (browser click-through not yet tried by anyone); bugs logged as issues
+- [x] Browser demo variant with `?as=` / `?q=` links written (`doc/demo/demo_script.md`); not yet clicked through
 
 ## Carried over from earlier tasks
 - [ ] Invite collaborators to the repo, then `python3 scripts/create_collaborator_branches.py`
