@@ -1,6 +1,6 @@
 <!--
 Author:    rhaveen-sa (with Claude Code)
-Version:   0.1.1
+Version:   0.1.2
 Filename:  pitch_script_2min.md
 Pathname:  pitch/pitch_script_2min.md
 Purpose:   Spoken 2 minute product pitch for Family Shopper Agent (about 255 words at 140 words a minute).
@@ -30,6 +30,7 @@ It searches real offers through the official idealo MCP.
 You bring your own model: OpenAI, Nebius or any compatible endpoint. The key stays in memory.
 Press Play the story. The child asks for Der Hobbit. idealo compares, the best offer is 10,99. The child orders. Done, 9,01 left.
 Now a board game for 30,98. Above the budget, so it is refused with the reason. The child asks a parent, the parent approves, and the family budget pays. 358,03 left.
+Then the teen wants a coffee machine for 79,99. Above the 50 euro budget, so a parent steps in.
 
 **1:10 Why you can trust it** (slide 5)
 The limits are not in the prompt. They live in our Family Wallet.
@@ -44,7 +45,7 @@ Hand your kids an agent, not your credit card.
 It runs with one Docker command. The code is on GitHub. Thank you.
 
 ## Notes for the speaker
-- Speak at about 140 words a minute. The script is about 255 words, so you have about 10 seconds spare for the live step.
+- Speak at about 140 words a minute. The script is about 270 words, so it runs just under 2 minutes with little spare time for the live step.
 - If you show the live app at 0:45, open http://localhost:6274/?story=1 and press Play the story.
 - If someone asks whether Boris is running: it is designed in and the CLI runs, but it is not connected in the demo and the agent is not yet in Agent Builder. The gateway steps in the story are simulated. The wallet enforces the limits. Say it plainly.
 - If someone asks about live orders: search is live on idealo. Orders are recorded in the wallet with the shop link. The app does not pay the shop.

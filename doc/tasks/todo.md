@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.9
+Version:   0.1.10
 Filename:  todo.md
 Pathname:  doc/tasks/todo.md
 Purpose:   Plan and progress tracker for 12_family_shopper_agent (setup first, then the build backlog lives in the GitHub Project)
@@ -133,12 +133,14 @@ Diagram: [`doc/diagrams/orchestration.mmd`](../diagrams/orchestration.mmd)
 - [x] Budget-aware offers: "Within your budget" / "Above your budget — a parent can step in" with an Ask-a-parent button
 - [x] Eval harness invariant strengthened + self-check tests; scenarios S-15, S-16, S-17
 - [x] Pitch deck, README, handover, pending, lessons, prompt and orchestrator brought in line with the new rule (docs-demo)
-- [ ] Teen ask-a-parent path (PR #70): review pending, then merge
-- [ ] Human click-through of the UI and the story
+- [x] Teen ask-a-parent path (PR #70) merged after independent review (approve), merge commit 907a8fc; PR #33 closed (unmerged commit `fd0fda3`, CSS for the old layout)
+- [x] Owner decisions: cover chip "Live idealo MCP" stays; no limit on open approval requests
+- [x] Story Case 3 (teen, coffee machine 79,99 €, parent steps in) added; replay in headless Chrome: replayed in headless Chrome on 2026-11-27 evening: 14 steps passed; wallet afterwards: three orders, child 0,00 €, teen 0,00 €, family 278,04 € left
+- [ ] Next: human click-through of the UI and the three-case story
 - [ ] Boris login, agent in Agent Builder, identity spike #4
 - [ ] Live idealo sign-in (live purchases refused until prices can be verified)
 - [ ] L3 with a real LLM (the driver is a stub)
-- [ ] Open remarks: `src/cli.js` bypasses the wallet; `/api/idealo/reconnect` needs no sign-in; unlimited open requests per child or teen; `GET /api/llm` readable by every member; auto-merge skipped when push and label arrive together; `main` unprotected
+- [ ] Open remarks: `src/cli.js` bypasses the wallet; `/api/idealo/reconnect` needs no sign-in; (no request limit: owner decision) `GET /api/llm` readable by every member; auto-merge skipped when push and label arrive together; `main` unprotected
 Collaborators merged on their own: #62, #64 (rhaveen-sa), #66, #67 (c666agent666, `BorisResolver`, off by default).
 
 ## Open decisions

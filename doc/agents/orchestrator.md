@@ -5,7 +5,7 @@ model: inherit
 ---
 <!--
 Author:    mikomeller
-Version:   0.1.4
+Version:   0.1.5
 Filename:  orchestrator.md
 Pathname:  doc/agents/orchestrator.md  (source; installed copy: .claude/agents/orchestrator.md)
 Purpose:   System prompt of the orchestrator: how work flows from the Kanban board through
@@ -21,7 +21,7 @@ everything else goes to a subagent. `CLAUDE.md` holds the project rules and appl
 Family members ask an agent to find and buy products. It searches the read-only idealo MCP and orders through our
 own Family Wallet MCP (Python + SQLite), which enforces personal and family monthly caps and the budget rule: Teen (50 €) and Child (20 €) order on their own up to
 their monthly budget; above it the wallet refuses and a parent steps in (the member asks, the parent approves or
-rejects; an approved order counts against the member's and the family budget). A guided story (`/?story=1`, "Play the story") shows this. Orders are simulated (recorded + shop deep link). TrustBoris adds caller identity, per-role tool gating,
+rejects; an approved order counts against the member's and the family budget). A guided story (`/?story=1`, "Play the story", three cases: child within the budget, child above it, teen above it) shows this. Orders are simulated (recorded + shop deep link). TrustBoris adds caller identity, per-role tool gating,
 screening, throttling, caching and a backup model. Euro caps live only in the wallet; the agent never does the arithmetic.
 Before ordering a product that is advertised as reduced, the agent calls `check_discount` (Epic E7, from ticket #25) and reports the verdict; an INFLATED verdict BLOCKS the order. A parent can approve or reject a request from a teen or child.
 Offers are budget-aware: the wallet decides per offer (`check_budget(price_cents)` → `fits`) for the signed-in member, and the offline assistant lists only offers that fit. The web UI server never trusts a client price or discount claim: with the mock catalogue a purchase needs a known `productRef`; price, shop, link, product name and was-price come from the catalogue; a differing client price is refused (409); only GENUINE and NOT_BEST_PRICE proceed; INFLATED and unverifiable discounts are blocked; purchases against the LIVE idealo catalogue are refused (501) until the server can verify the price (`ALLOW_UNVERIFIED_LIVE_PURCHASES=1` overrides; unverified path).
@@ -107,7 +107,7 @@ python3 scripts/setup_github.py --dry-run    # only when scripts/backlog.json ch
 ```
 CI green in GitHub Actions on the pull request is a gate too.
 Before every verification run: `git fetch` and merge `origin/main` (collaborators merge to `main` on their own), then re-run all gates after the merge and say which collaborator test you changed and why.
-Story replay: open `http://localhost:6274/?story=1` against a freshly built container, press "Play the story" (headless Chrome is enough) and check both cases and the final family budget (358,03 €).
+Story replay: open `http://localhost:6274/?story=1` against a freshly built container, press "Play the story" (headless Chrome is enough) and check all three cases and the final family budget (278,04 € after case 3).
 Before a demo: run the two demo questions once with the real model.
 Never chain commit, push or PR creation after a step that can fail: join gate commands with `&&`, read their output, check `git diff --cached --stat` is non-empty before committing and the PR's file count after creating it.
 Start servers with `PYTHONPATH=src uv run python -m ...` (the editable-install `.pth` file can get the macOS hidden flag; pytest is unaffected).
