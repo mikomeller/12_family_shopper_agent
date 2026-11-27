@@ -1,5 +1,5 @@
 // Author:    rodrigo, mikomeller, rhaveen-sa
-// Version:   0.1.3
+// Version:   0.1.4
 // Filename:  server.js
 // Pathname:  src/server.js
 // Purpose:   Node server of the Family Shopper web app: chat with the model, idealo MCP (live or sample catalogue),
@@ -336,9 +336,30 @@ app.get("/api/state", async (request, response) => {
   } catch (error) { response.status(500).json({ error: error.message }); }
 });
 
+// Allowed page origins for the demo reset: APP_ORIGINS (comma-separated full origins) or the two default local origins.
+function allowedAppOrigins() {
+  const raw = (process.env.APP_ORIGINS || "").trim();
+  const list = raw ? raw.split(",") : ["http://localhost:6274", "http://127.0.0.1:6274"];
+  const out = new Set();
+  for (const item of list) {
+    try { const u = new URL(item.trim()); if (u.origin !== "null") out.add(u.origin); } catch { /* ignore invalid entry */ }
+  }
+  return out;
+}
+// Exact comparison of the parsed origin (scheme + host + port); a missing header, "null" or a path/suffix variant is refused.
+function originAllowed(header) {
+  if (typeof header !== "string" || !header) return false;
+  try {
+    const u = new URL(header);
+    if (header.replace(/\/+$/, "").toLowerCase() !== u.origin.toLowerCase()) return false;
+    return allowedAppOrigins().has(u.origin);
+  } catch { return false; }
+}
+
 // Demo reset (guided story "Play again"): only with ALLOW_DEMO_RESET=1, only a parent, only with the confirm phrase.
 app.post("/api/demo/reset", async (request, response) => {
   if (process.env.ALLOW_DEMO_RESET !== "1") return response.status(404).json({ error: "Demo reset is not enabled." });
+  if (!originAllowed(request.get("origin"))) return response.status(403).json({ error: "The demo reset can only be called from the app's own page." });
   if (request.member !== "parent") return response.status(403).json({ error: "Only a parent can reset the demo wallet." });
   if (request.body?.confirm !== "reset-demo-wallet") return response.status(400).json({ error: 'Send confirm: "reset-demo-wallet" to reset.' });
   try {
