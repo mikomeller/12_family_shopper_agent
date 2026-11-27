@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller, rhaveen-sa
-Version:   0.1.14
+Version:   0.1.15
 Filename:  README.md
 Pathname:  README.md
 Purpose:   Overview, structure and first-time setup of 12_family_shopper_agent
@@ -113,7 +113,7 @@ src/family_shopper/wallet/       Family Wallet MCP (stdio): db, identity (HMAC t
 src/family_shopper/idealo_mock/  offline idealo MCP mock + fixtures
 src/family_shopper/discount_check.py  discount sanity check
 tests/                    pytest: caps (L1), MCP contract (L2), mock, demo, smoke
-scripts/                  demo.py (offline demo), seed_wallet.py, wallet_tokens.py, ui_wallet_smoke.mjs, setup_github.py, board.py
+scripts/                  demo.py (offline demo), seed_wallet.py, wallet_tokens.py, ui_wallet_smoke.mjs, setup_github.py, board.py, board_sync.py
 src/server.js, src/wallet-client.js, src/idealo-oauth.js, src/cli.js   Node web UI backend (see Web UI)
 web/, index.html, vite.config.js, package.json                        React front end
 skills/family-shopper/    shopper skill used by the chat
@@ -172,6 +172,8 @@ It is safe to re-run. If your Project already has another number, pass `--projec
 
 Then, once, in the Project: **New view → Board → Column by: Stage**. Under **Workflows** enable
 **Auto-add to project** for this repo so new issues land on the board.
+
+The board also follows pull request titles automatically (In progress when a PR opens, Test when it is merged); setup and rules: [doc/runbooks/board_automation.md](doc/runbooks/board_automation.md).
 
 ## Branches
 `main` is reserved for reviewed code and only changes through pull requests.

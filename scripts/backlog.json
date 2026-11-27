@@ -1,7 +1,7 @@
 {
   "_header": {
     "Author": "mikomeller",
-    "Version": "0.1.6",
+    "Version": "0.1.7",
     "Filename": "backlog.json",
     "Pathname": "scripts/backlog.json",
     "Purpose": "Backlog for 12_family_shopper_agent: labels, milestones, Project fields, epics and stories (a story names its epic in 'parent') read by setup_github.py"
@@ -1007,6 +1007,23 @@
         "Judging criterion": "2 Trust you can see"
       },
       "body": "## Why\nThe demo must show the flow without typing: a child asks for a book, idealo comparison highlights the best offer, the child orders, the trust layer decides; then a product above the budget is refused and a parent steps in.\n\n## Tasks\n- [x] \"Play the story\" button and `?story=1`, decision trail, real API calls against the Family Wallet\n- [x] Case 1: Der Hobbit within the budget — ordered, no parent needed\n- [x] Case 2: board game above the budget — refused, child asks a parent, parent approves\n- [x] Controls really disabled while the story runs; the story approves its own request\n- [x] On-screen note: TrustBoris is not connected, gateway steps are simulated, the wallet enforces the limits\n- [ ] Clicked through by a person in a browser (verified in headless Chrome only)\n- [ ] Story against a connected TrustBoris agent\n\n## Acceptance criteria\n- [x] Replayed end to end in headless Chrome; wallet state afterwards matches the trail\n- [x] Merged by PR #63, #68, #69"
+    },
+    {
+      "title": "Board follows pull requests automatically (In progress on open, Test on merge)",
+      "labels": [
+        "type:task",
+        "area:devenv"
+      ],
+      "milestone": "M1 Core build",
+      "parent": "Epic E6: Dev environment and orchestration",
+      "fields": {
+        "Stage": "Backlog",
+        "Priority": "P1",
+        "Size": "S",
+        "Boris feature": "None",
+        "Judging criterion": "n/a"
+      },
+      "body": "## Why\nThe board was synced by hand and fell three rounds behind the code (2026-11-27). Owner decision: automate board updates.\n\n## Rule\nStories are named in the pull request title, e.g. `feat: … (#7, #8)`. PR opened → those stories move to In progress; PR merged → to Test with a comment. Epics and pull request numbers are ignored. Demo-ready and checkbox ticks stay manual.\n\n## Tasks\n- [ ] `scripts/board_sync.py` with unit tests (`tests/test_board_sync.py`)\n- [ ] `.github/workflows/board-sync.yml` (`pull_request_target`, never checks out the PR head, untrusted title only through env)\n- [ ] Runbook `doc/runbooks/board_automation.md`\n- [ ] **Owner:** create a classic token with only the `project` scope and store it as the repository secret `PROJECT_TOKEN`\n- [ ] First real workflow run seen moving a card\n\n## Acceptance criteria\n- [ ] Without the secret the workflow skips and does not fail\n- [ ] With the secret: a PR naming a story moves its card on open and on merge"
     }
   ]
 }
