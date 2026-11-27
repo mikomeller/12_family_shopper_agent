@@ -21,3 +21,9 @@ __pycache__/
 *.env
 config/family_budget.yaml
 data/*.sqlite
+
+# Local React app runtime files
+node_modules/
+dist/
+.data/
+data/family.json
