@@ -1,0 +1,60 @@
+# Author:    mikomeller
+# Version:   0.1.1
+# Filename:  board-sync.yml
+# Pathname:  .github/workflows/board-sync.yml
+# Purpose:   Move the GitHub Project cards named in a pull request title: In progress when the PR opens,
+#            Test when it is merged (scripts/board_sync.py). Runbook: doc/runbooks/board_automation.md
+#
+# Why pull_request_target: the workflow file and scripts/board_sync.py always come from main, never from
+# the pull request, so a PR cannot change the code that sees the PROJECT_TOKEN secret. The job therefore
+# checks out the default ref (the base branch) and NEVER the pull request's head.
+# The PR title is untrusted text: it reaches the script only through env, never inside a run: line.
+name: Board sync
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, ready_for_review, edited, closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: board-sync-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # Not for drafts; closed without merge does nothing.
+    # Opened/reopened/ready/edited: only pull requests from THIS repository (not a fork) by an owner, member or
+    # collaborator, so the PROJECT_TOKEN secret is not handed to runs triggered by outsiders.
+    # Closed and merged: any merged pull request (a maintainer merged it).
+    if: >-
+      !github.event.pull_request.draft
+      && (
+        (github.event.action == 'closed' && github.event.pull_request.merged)
+        || (
+          github.event.action != 'closed'
+          && github.event.pull_request.head.repo.full_name == github.repository
+          && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+        )
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Move the cards named in the title
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          ISSUE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          EVENT: ${{ github.event.action == 'closed' && 'merged' || 'opened' }}
+        run: >-
+          python3 scripts/board_sync.py --event="$EVENT" --pr="$PR_NUMBER" --title="$PR_TITLE"
+          --sha="$MERGE_SHA" --repo="$GITHUB_REPOSITORY"

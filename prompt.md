@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.6
+Version:   0.1.7
 Filename:  prompt.md
 Pathname:  prompt.md
 Purpose:   Start prompt for Claude Code in 12_family_shopper_agent: fetch the repo, read the project .md files,
@@ -91,6 +91,7 @@ If `gh` is not logged in or the board cannot be read, say so and work from `doc/
 ## Board model
 - Epic = parent issue with label `type:epic`. Story = sub-issue of an epic. Task = checkbox inside the story.
 - Stage column: Ideas → Backlog → Ready → In progress → Test → Demo-ready.
+- The board follows pull request titles automatically (In progress on open, Test on merge); Demo-ready and checkbox ticks stay manual (`doc/runbooks/board_automation.md`).
 - You may move a story with `python3 scripts/board.py move <issue-number> "<Stage>"` and tick checkboxes or comment
   with `gh issue edit` / `gh issue comment`. Creating or closing issues and changing `scripts/backlog.json` needs the human's go.
 - Never run `scripts/setup_github.py` without the human's go.
