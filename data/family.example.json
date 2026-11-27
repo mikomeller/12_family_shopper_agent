@@ -1,0 +1,15 @@
+{
+  "members": [
+    {
+      "name": "Member 1",
+      "spendingLimitEur": 60,
+      "spentEur": 0
+    },
+    {
+      "name": "Member 2",
+      "spendingLimitEur": 20,
+      "spentEur": 0
+    }
+  ],
+  "mockPurchases": []
+}

@@ -1,5 +1,5 @@
 # Author:    mikomeller
-# Version:   0.1.1
+# Version:   0.1.2
 # Filename:  .gitignore
 # Pathname:  .gitignore
 # Purpose:   Files git must not track in 12_family_shopper_agent (OS/Drive artefacts, Python caches, secrets, local data)
@@ -25,3 +25,9 @@ data/*.sqlite
 
 # Claude Code local files
 .claude/
+
+# Local React app runtime files
+node_modules/
+dist/
+.data/
+data/family.json
