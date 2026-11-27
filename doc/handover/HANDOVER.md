@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.7
+Version:   0.1.8
 Filename:  HANDOVER.md
 Pathname:  doc/handover/HANDOVER.md
 Purpose:   Handover for whoever continues 12_family_shopper_agent (person or Claude Code session):
@@ -47,6 +47,7 @@ through our own Family Wallet MCP, which enforces personal and family monthly ca
 | Server-verified purchases | mock catalogue: known `productRef` needed; price, shop, link, name and was-price from the catalogue; differing client price refused (409); only GENUINE and NOT_BEST_PRICE proceed; live catalogue purchases refused (501) unless `ALLOW_UNVERIFIED_LIVE_PURCHASES=1` (unverified path) |
 | Bring your own model provider (story #58) | `src/llm-provider.js` + parent-only "Model provider" dialog: OpenAI / Codex API key, Nebius Token Factory, any OpenAI-compatible endpoint; key in server memory only; tested only against `scripts/fake_llm.mjs`: `FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs` 43 of 43; ChatGPT/Codex subscription OAuth not built |
 | Pitch deck `pitch/` (owner) | added by the owner, commit 0f82ed1, merged with PR #59; not edited by the agents; `pitch/*.py` exempt from the line-length lint rule |
+| Demo wallet reset and story flow (PR #73, PR #74, merge commit b92ae10; independent review: approve, CI green) | `POST /api/demo/reset`: only with `ALLOW_DEMO_RESET=1` (set for the demo container in `compose.yaml`, off by default: 404), parent only (403), body `{"confirm":"reset-demo-wallet"}` (400); runs `scripts/reset_demo_wallet.py`, one transaction deletes all orders and approval requests and restores the caps 400/50/20; db file, members, tokens stay; not a chat tool. Story UI: "now" banner, three collapsible cases, "Story finished" summary, "Play again" with a confirmation dialog. `scripts/story_replay.mjs` replays the story in headless Chrome (exit 0 only when "Story finished" appears). Verified: pytest 191 passed, 16 skipped; ruff clean; `DEMO_RESET=1 FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs` 67 of 67; replay twice on the demo container (clean and used wallet), then three orders, Child 0,00 €, Teen 0,00 €, Family 278,04 € left. Deck `pitch/pitch.html` shows three cases. Demo container runs this build at `http://localhost:6274`, clean wallet |
 | Not done | Boris agent in Agent Builder, Boris login, identity spike #4, idealo live smoke test #3, L3/L4 with an LLM agent and Boris, ADR 0001, OpenAI key / idealo sign-in / Boris connection details from the owner (#55) |
 
 ## Update 2026-11-27 evening (rhaveen-sa)
@@ -122,6 +123,8 @@ makes it the main session. To make it the default, add `{"agent": "orchestrator"
 | 2026-11-27 evening owner: a parent-approved order counts against the member's budget and the family budget (400 EUR) | cap rules, extends A1 |
 | 2026-11-27 owner: Rhaveen stays at write access | admin is impossible on a personally owned repo |
 | Guided story uses the deterministic assistant for its two questions | the real model behaved differently from the fake one twice; the story must be repeatable |
+| 2026-11-27 owner: the deck demo slide shows three cases; "Play again" resets the wallet itself; keep best practice and a logical flow of information on screen | PR #74 |
+| The demo reset is opt-in (`ALLOW_DEMO_RESET=1`), parent only, needs a confirm body, not a chat tool | a reset must never be reachable by the model or by default |
 | `BorisResolver` stays OFF by default (`WALLET_IDENTITY_RESOLVER=boris` enables it) | it trusts `_meta` without a signature check: only safe behind the Boris gateway |
 
 ## Open decisions (for the owner)
@@ -144,6 +147,7 @@ makes it the main session. To make it the default, add `{"agent": "orchestrator"
 - Boris connection details, OpenAI key and idealo sign-in: checked today, branch `rodrigo-agent` and PR #33 contain none of them (`.env.example` has an empty key; idealo tokens are in the git-ignored `.data/idealo-oauth.json` on the machine that signed in). Asked from the owner in #55; secrets must never be pushed to this public repo.
 - The subagent `tools` lists use Claude Code's tool names as documented on 2026-11-27.
 
+- Unverified (2026-11-27 late evening): a human click-through of the story and the reset dialog (only a headless-Chrome replay and screenshots); TrustBoris connection (story gateway steps are simulated); live idealo; L3 with a real LLM. Process note: the UI builder subagent ended early with a network error after its edits; its work was verified by the orchestrator (screenshots, browser replay, review), not by its report. Rodrigo's unmerged commit `fd0fda3` (wider chat panel): owner has not decided.
 - Unverified (2026-11-27 evening): TrustBoris forwards identity as `BorisResolver` assumes (code merged in #66/#67, never run against Boris); a human click-through of the UI; the real model with the PR #70 teen path; live idealo sign-in.
 
 ## Risks
@@ -166,6 +170,7 @@ makes it the main session. To make it the default, add `{"agent": "orchestrator"
 | A child or teen can create unlimited open requests at any price (reviewer remark) | a parent's queue can be flooded | owner decision 2026-11-27: no limit wanted |
 | `GET /api/llm` readable by every member; `/api/idealo/reconnect` needs no sign-in | information and a side effect (writes `.data/idealo-oauth.json`) | acceptable on the 127.0.0.1 bind; not fixed |
 | `src/cli.js` (`npm start`) still bypasses the wallet | float budget, no rules | rewire or remove (owner's go) |
+| Demo reset (open reviewer remarks, non-blocking) | no Origin check, so any local process can reset when enabled (acceptable on the 127.0.0.1 bind, off by default); no timeout on the reset script (a hang would block wallet calls); if a reset fails the UI leaves the account on Parent; `story_replay.mjs` may leave Chrome running if it crashes; `reset_demo_wallet.py` would create wallet tables in a non-wallet sqlite file if `WALLET_DB` pointed at one | keep `ALLOW_DEMO_RESET` off outside the demo |
 | Auto-merge job is skipped when a push and the label arrive together | PR stays open | re-apply the label; fix: trigger on the label event without cancelling it |
 | OpenAI key pasted in a chat | key may leak | revoke after the event; the key is only in the git-ignored `.env` |
 | Real model differs from the fake one | a demo question may loop or lose the product reference | run the two demo questions once with the real model before the demo; the story uses the deterministic assistant |

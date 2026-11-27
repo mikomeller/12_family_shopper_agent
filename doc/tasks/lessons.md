@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.10
+Version:   0.1.11
 Filename:  lessons.md
 Pathname:  doc/tasks/lessons.md
 Purpose:   Lessons learned and the rules that prevent repeating mistakes; review at the start of every session
@@ -70,3 +70,7 @@ Purpose:   Lessons learned and the rules that prevent repeating mistakes; review
   *Rule:* one real-model run of the two demo questions is a gate before a demo; the story uses the deterministic assistant.
 - **2026-11-27 — I claimed "place_order is not available" for a child on screen** although the wallet merely refused it.
   *Rule:* every on-screen statement about what enforces a rule must name the component that really enforces it.
+- **2026-11-27 — A builder subagent died with a network error after editing files and before reporting.**
+  *Rule:* when a builder ends without a report, treat its edits as unreviewed code: read the diff's size, run the build and the gates, verify the behaviour yourself (here: a browser-driven replay), and say so in the pull request.
+- **2026-11-27 — Screenshots cannot prove a click path** (dialogs, confirmations).
+  *Rule:* for flows that need clicks, drive a real headless browser (`scripts/story_replay.mjs`) instead of inferring from the code.

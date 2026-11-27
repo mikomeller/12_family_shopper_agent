@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.10
+Version:   0.1.11
 Filename:  todo.md
 Pathname:  doc/tasks/todo.md
 Purpose:   Plan and progress tracker for 12_family_shopper_agent (setup first, then the build backlog lives in the GitHub Project)
@@ -182,3 +182,11 @@ Input: panel review `doc/reviews/2026-11-27_pitch_panel_review.md`. Owner said g
 - [x] `scripts/offline_agent_budget_check.mjs`: hard-coded temp path of another machine replaced by `os.tmpdir()` (it failed on every other machine)
 - [x] Proof: `ui_wallet_smoke.mjs` 32 PASS on a fresh wallet; `offline_agent_budget_check.mjs` 6 PASS; `vite build` ok; pytest 152 passed, 13 skipped; ruff clean;
       checked in the browser at 1280x820, light and dark, as Teen and Parent; one teen test order (10.99 EUR) in the local dev wallet
+
+## Task 8 — Story flow and demo reset (2026-11-27 late evening)
+- [x] PR #73: third story case (Teen, coffee machine 79,99 € above the 50 € budget, refused, a parent steps in) merged
+- [x] PR #74: story information flow (now banner, three collapsible cases, "Story finished" summary), "Play again" with confirmation, `POST /api/demo/reset` (`ALLOW_DEMO_RESET=1`, parent only, confirm body), `scripts/reset_demo_wallet.py`, `scripts/story_replay.mjs`, three-case deck; merged (b92ae10) after independent review (approve) and green CI
+- [x] Gates: pytest, ruff, `DEMO_RESET=1 FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs`, `node scripts/story_replay.mjs` on a clean and a used wallet, screenshots checked
+- [x] Docs: README, demo script, Docker runbook, handover, pending, lessons, `prompt.md`, orchestrator
+- [ ] Human click-through; TrustBoris connection; live idealo; L3 with a real LLM
+- Results: 2026-11-27 late evening: `uv run pytest -q` 191 passed, 16 skipped; ruff clean; `ui_wallet_smoke.mjs` 67 of 67; story replay twice on the demo container: finished both times; afterwards three orders (Child 10,99 €, Child 30,98 €, Teen 79,99 €), Child 0,00 €, Teen 0,00 €, Family 278,04 € left. Not run: human click-through, Boris, live idealo, L3 with a real LLM.
