@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.1
+Version:   0.1.2
 Filename:  HANDOVER.md
 Pathname:  doc/handover/HANDOVER.md
 Purpose:   Handover for whoever continues 12_family_shopper_agent (person or Claude Code session):
@@ -9,14 +9,16 @@ Purpose:   Handover for whoever continues 12_family_shopper_agent (person or Cla
 # Handover — 12_family_shopper_agent (2026-11-27)
 
 ## Start here
+Work only in this folder (owner decision 2026-11-27); ask before cloning anywhere else.
 ```bash
 cd ~/Documents/M1_20230921/src/genAI/12_family_shopper_agent
-python3 scripts/setup_github.py --dry-run     # check: 40 issues, 30 epic links
-python3 scripts/setup_github.py               # adds 7 epics + 10 stories, links stories to epics
-python3 scripts/board.py list --stage Ready   # the board in the terminal
+uv sync                                        # install dependencies
+uv run pytest -q                               # expected: 100 passed
+uv run python scripts/demo.py                  # offline demo, ends: DEMO OK: 5/5 scenes
 mkdir -p .claude/agents && cp doc/agents/*.md .claude/agents/   # install the agent definitions (once, and after every change)
-claude --agent orchestrator                   # orchestrator session with Opus/Sonnet subagents
+claude --agent orchestrator                    # orchestrator session with Opus/Sonnet subagents
 ```
+Start servers with `PYTHONPATH=src uv run python -m ...` (macOS hidden-flag problem with the editable install).
 Next steps with owners: [`doc/tasks/pending.md`](../tasks/pending.md).
 
 ## What this project is
@@ -27,13 +29,19 @@ through our own Family Wallet MCP, which enforces personal and family monthly ca
 ## State
 | Area | State |
 |---|---|
-| Repo, labels, milestones, Project, 23 issues | done (confirmed by the owner 2026-11-27) |
-| Epic → Story structure (7 epics, 10 new stories, sub-issue links) | in `backlog.json` v0.1.2; script run on GitHub pending |
-| Orchestrator + 5 subagents (source `doc/agents/`) | written; not yet installed to `.claude/agents/` or run in Claude Code |
-| Board access from the terminal (`scripts/board.py`) | written; tested against a stub only |
-| Eval plan (`doc/evals/eval_plan.md`) | written; no eval code yet |
-| Product code (wallet, idealo mock, eval harness) | not started |
-| Boris: account, CLI, identity spike | not started (human) |
+| Repo (public), labels, milestones, Project, issues | done; `setup_github.py` run live: 7 epics + 10 stories, 30 links, 0 failures; later E7 (#45) and #46-#48; `backlog.json` v0.1.3 (44 issues) |
+| CI `.github/workflows/ci.yml` + automerge (label `automerge`, squash) | done; verified live on PR #44 (0c6de28) and PR #49 (55513dc); `main` has no branch protection |
+| Wallet design, server (7 tools), seed script | on `main`; seed script has no guard before wiping the db |
+| Cap and contract tests L1 + L2 | 72 of 72 pass (`evals/results/2026-11-27_l1_l2.md`); full suite 100 passed, ruff clean |
+| idealo mock + fixtures (one injection) | on `main`; real idealo response shapes unverified |
+| Discount check (`check_discount`, Epic E7, ticket #25) | designed and built; DC-01…DC-19 pass; corrected design `doc/design/discount_check.md` |
+| Offline demo `scripts/demo.py`, `doc/demo/demo_script.md` | `DEMO OK: 5/5 scenes` |
+| Boris system prompt and runbooks | written; every Boris dashboard step unverified |
+| Boris CLI in Docker (`docker/boris/`) | CLI 0.1.35 runs; `boris doctor`: "Not signed in" and "docker is not installed" inside the container |
+| Web UI (collaborator PR #33, Node/React, OpenAI) | merged; purchases, budgets and approvals go through the Family Wallet (`src/wallet-client.js`); `node scripts/ui_wallet_smoke.mjs` passes 7 of 7; chat endpoint untested (no OpenAI key), UI not viewed in a browser, `src/cli.js` (`npm start`) still uses its own float budget file and bypasses the wallet |
+| Orchestrator + 5 subagents (source `doc/agents/`) | written and installed |
+| Independent review | approve, no blocking findings |
+| Not done | Boris agent in Agent Builder, Boris login, identity spike #4, idealo live smoke test #3, L3/L4 evals (no harness), ADR 0001, Docker Compose |
 
 ## How the orchestration works
 Diagram: [`doc/diagrams/orchestration.mmd`](../diagrams/orchestration.mmd).
@@ -63,11 +71,19 @@ makes it the main session. To make it the default, add `{"agent": "orchestrator"
 | Offline idealo mock for development and evals | idealo trial allows 500 calls/day |
 | The wallet enforces role rules itself, in addition to Boris gating | still safe when Boris is off |
 | Opus designs and reviews, Sonnet builds | review stays independent of the builder |
+| 2026-11-27 owner: orchestrator may push, open PRs, label them `automerge`, squash only | CI must be green; never push to `main` directly, never force-push |
+| 2026-11-27 owner: development only in the allowed folder | no second clones |
+| 2026-11-27 owner: A1 confirmed (approved child order counts against child's personal cap and family cap) | cap rules |
+| 2026-11-27 owner: A2 confirmed (safety scenarios 3 of 3) | L3 pass marks |
+| One wallet access point per role: member from `WALLET_MEMBER_TOKEN` (HMAC-SHA256, secret `WALLET_TOKEN_SECRET`) per server process | until spike #4 shows whether Boris forwards identity |
+| Discount check as Python module + MCP tool on the idealo mock; Node/TS service rejected | ticket #25 formula was not sound; INFLATED warns, does not block (proposal) |
 
 ## Open decisions (for the owner)
-- A1: does a parent-approved child order count against the child's cap? Assumed yes.
-- A2: L3 eval pass marks (3 of 3 safety, 2 of 3 task).
-- Hackathon date and team size are not known here; they decide whether E4 (evals) and CI stay in scope.
+- Where `sale_days` for the discount check comes from.
+- Should a parent be able to reject a request?
+- Should INFLATED block an order (proposal: warn only)?
+- Review of collaborator PR #33 (superseded if the wallet-wired version is merged); whether to comment on ticket #25.
+- Decided 2026-11-27: A1, A2 (see Decisions).
 
 ## Unverified — check before relying on it
 - GitHub sub-issue linking on a personal account: the script uses `POST /repos/{owner}/{repo}/issues/{n}/sub_issues`
@@ -75,6 +91,9 @@ makes it the main session. To make it the default, add `{"agent": "orchestrator"
 - `scripts/board.py` assumes `gh project item-list --format json` prints custom fields as top-level keys (`stage`, `priority`).
 - Tool versions (Python, uv, MCP SDK, ruff, pytest) are not pinned yet; check each against its documentation in the dev-environment story.
 - Whether Boris forwards the caller identity to MCP tools (spike, P0) and what exactly fails with Boris off.
+- Every Boris dashboard step in `doc/runbooks/boris_agent_setup.md`; the Boris login (`--device`); commands that host agents need the docker CLI in the image (not done).
+- What idealo's real responses and price history contain (the mock shapes are guesses).
+- Web UI: the chat endpoint with a real OpenAI key and idealo OAuth; the UI in a browser.
 - The subagent `tools` lists use Claude Code's tool names as documented on 2026-11-27.
 
 ## Risks
@@ -83,6 +102,8 @@ makes it the main session. To make it the default, add `{"agent": "orchestrator"
 | Boris does not forward identity | personal caps cannot be applied | resolver with signed member token, or one access point per role |
 | idealo quota used up during the demo | search stops | mock server, Boris response cache |
 | Agent ignores a cap in conversation | none on money | caps are enforced in the wallet, checked by L1/L2/S-10 |
+| Auto-merge without human review on an unprotected public `main` | a green but wrong PR lands on `main` | tests and reviewer before labeling; consider branch protection |
+| Web UI depends on an OpenAI key and sends family budget data to OpenAI | data leaves the project; key handling | keep the key out of the repo; decide whether this is acceptable for the demo |
 | Git from the Claude desktop sandbox | lock files left in `.git` | run git only in your own terminal or Claude Code |
 
 ## Rules that always apply

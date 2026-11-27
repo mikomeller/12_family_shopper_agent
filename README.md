@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.4
+Version:   0.1.5
 Filename:  README.md
 Pathname:  README.md
 Purpose:   Overview, structure and first-time setup of 12_family_shopper_agent
@@ -27,15 +27,40 @@ Research: [`doc/research/affinidi_boris_idealo.md`](doc/research/affinidi_boris_
 ## Structure
 ```
 .github/ISSUE_TEMPLATE/   Idea, Task, Bug issue forms
+agent/                    family_buyer_system_prompt.md (system prompt of the shopping agent)
 config/                   family_budget.example.yaml (copy to family_budget.yaml)
-doc/research/             research and spike results
-doc/diagrams/             Mermaid diagrams (before code)
-doc/agents/               orchestrator + subagents for Claude Code; copy to .claude/agents/, then: claude --agent orchestrator
-doc/evals/                eval_plan.md (gates, eval levels, scenarios)
-doc/handover/             HANDOVER.md (state, decisions, how to start)
-doc/tasks/                todo.md (plan), pending.md (next steps) and lessons.md
-scripts/                  setup_github.py + backlog.json, board.py (board in the terminal)
+docker/boris/             Dockerfile + README for the Boris gateway
+doc/                      research, diagrams, design (wallet_mcp.md), agents, evals, handover, tasks
+src/family_shopper/wallet/       Family Wallet MCP (stdio): db, identity (HMAC token), service, server
+src/family_shopper/idealo_mock/  offline idealo MCP mock + fixtures
+src/family_shopper/discount_check.py  discount sanity check
+tests/                    pytest: caps (L1), MCP contract (L2), mock, demo, smoke
+scripts/                  demo.py (offline demo), seed_wallet.py, wallet_tokens.py, ui_wallet_smoke.mjs, setup_github.py, board.py
+src/server.js, src/wallet-client.js, src/idealo-oauth.js, src/cli.js   Node web UI backend (see Web UI)
+web/, index.html, vite.config.js, package.json                        React front end
+skills/family-shopper/    shopper skill used by the chat
 ```
+
+## Run the tests and the offline demo
+```bash
+uv sync
+uv run pytest -q
+uv run python scripts/demo.py
+```
+
+## Web UI (by Rodrigo)
+A chat front end for the family shopper. **Search uses the real idealo MCP and needs an OpenAI key.**
+**All budget decisions come from the Family Wallet MCP** (integer cents; teen 50 EUR, child 20 EUR with parent approval, family 400 EUR per month).
+The UI never decides a cap: the Node server starts one wallet process per member with a signed token and relays the wallet's answers.
+```bash
+npm install
+cp .env.example .env     # set OPENAI_API_KEY; optionally WALLET_TOKEN_SECRET and WALLET_DB
+npm run dev              # server on http://127.0.0.1:3001, UI via Vite
+```
+If `WALLET_TOKEN_SECRET` is empty the server generates a random one in memory at start. The wallet db is created on first start
+(`WALLET_DB`, default `data/wallet.sqlite`). Members and limits are changed only in the wallet by a parent; the UI cannot add members.
+`npm start` runs the older CLI, which still uses a local JSON budget and does not go through the wallet.
+Smoke test with the server running: `node scripts/ui_wallet_smoke.mjs`.
 
 ## First-time GitHub setup (on your Mac, from `~/Documents/M1_20230921/src/genAI/12_family_shopper_agent`)
 ```bash

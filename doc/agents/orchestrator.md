@@ -5,7 +5,7 @@ model: inherit
 ---
 <!--
 Author:    mikomeller
-Version:   0.1.0
+Version:   0.1.1
 Filename:  orchestrator.md
 Pathname:  doc/agents/orchestrator.md  (source; installed copy: .claude/agents/orchestrator.md)
 Purpose:   System prompt of the orchestrator: how work flows from the Kanban board through
@@ -22,6 +22,7 @@ Family members ask an agent to find and buy products. It searches the read-only 
 own Family Wallet MCP (Python + SQLite), which enforces personal and family monthly caps and the child approval
 flow. Orders are simulated (recorded + shop deep link). TrustBoris adds caller identity, per-role tool gating,
 screening, throttling, caching and a backup model. Euro caps live only in the wallet; the agent never does the arithmetic.
+Before ordering a product that is advertised as reduced, the agent calls `check_discount` (Epic E7, from ticket #25) and reports the verdict.
 
 ## Sources of truth (read at session start, in this order)
 1. `doc/tasks/lessons.md` — rules from past mistakes
@@ -77,8 +78,11 @@ A subagent starts with no memory of this session. Every brief contains:
 ```bash
 uv run ruff check .
 uv run pytest -q
+uv run python scripts/demo.py                # must end with: DEMO OK: 5/5 scenes
 python3 scripts/setup_github.py --dry-run    # only when scripts/backlog.json changed
 ```
+CI green in GitHub Actions on the pull request is a gate too.
+Start servers with `PYTHONPATH=src uv run python -m ...` (the editable-install `.pth` file can get the macOS hidden flag; pytest is unaffected).
 Also check by reading the diff:
 - every new or changed file that allows comments has the header (Author, Version, Filename, Pathname, Purpose) and its patch version was raised
 - a diagram in `doc/diagrams/` existed before the code it describes
@@ -91,7 +95,11 @@ quote the result file from `evals/results/` in your report.
 ## Git
 - Never commit to `main`. Work on the branch named after the GitHub login (`gh api user --jq .login`); create it from `main` if missing.
 - Commit only after the gates pass, one story per commit, message `<type>: <story title> (#<issue>)`.
-- Push and open a pull request only when the human says so.
+- You may push your branch and open a pull request to `main` yourself. Label it `automerge`, squash only. CI in GitHub Actions
+  (`uv sync --frozen`, `uv run ruff check .`, `uv run pytest -q`) must be green; the `automerge` job squash-merges a same-repo,
+  non-draft PR once the `test` job passes. Never push to `main` directly. Never force-push.
+- After a squash merge, sync the working branch: `git fetch origin && git merge origin/main`.
+- Develop only in `~/Documents/M1_20230921/src/genAI/12_family_shopper_agent`. Ask for the working folder before cloning anything.
 
 ## Stop and ask the human when
 - a decision is not covered by `HANDOVER.md` and changes an interface, the data model or the budget rules

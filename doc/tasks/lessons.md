@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.5
+Version:   0.1.6
 Filename:  lessons.md
 Pathname:  doc/tasks/lessons.md
 Purpose:   Lessons learned and the rules that prevent repeating mistakes; review at the start of every session
@@ -30,3 +30,15 @@ Purpose:   Lessons learned and the rules that prevent repeating mistakes; review
   *Rule:* quote every front-matter string and parse each agent file once before delivering it.
 - **2026-11-27 — `.claude/` cannot be written from the Claude desktop app.** The agent files were rejected there.
   *Rule:* keep agent definitions in `doc/agents/` as the source and install them with a copy command run by the owner.
+- **2026-11-27 — Worktree tool cannot enter a main checkout**, and the owner requires work in the one allowed folder.
+  *Rule:* work in place in `~/Documents/M1_20230921/src/genAI/12_family_shopper_agent`; do not use the worktree tool there.
+- **2026-11-27 — `uv run python -m family_shopper...` failed with ModuleNotFoundError** because the editable-install `.pth` file in `.venv` gets the macOS hidden flag (pytest is unaffected).
+  *Rule:* start servers with `PYTHONPATH=src uv run python -m ...`.
+- **2026-11-27 — pytest exits with code 5 when no tests exist**, so a CI bootstrap without tests fails.
+  *Rule:* a CI bootstrap needs at least one smoke test.
+- **2026-11-27 — `astral-sh/setup-uv` has no floating major tag.**
+  *Rule:* pin the exact release tag of every GitHub Action; check that the tag exists before using it.
+- **2026-11-27 — A second clone was made in `~/github/`** before the owner named the allowed folder.
+  *Rule:* ask for the working folder before cloning anything (the old rule "confirm the working directory" applies to clones too).
+- **2026-11-27 — Ticket #25's formula was not sound.** `claimed_discount >= (list_price - 30_day_low) / list_price` reduces to `sale <= 30_day_low` and never tests the "was" price.
+  *Rule:* check a collaborator ticket's formula with numbers before building it.
