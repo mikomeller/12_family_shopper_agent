@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.1
+Version:   0.1.2
 Filename:  demo_script.md
 Pathname:  doc/demo/demo_script.md
 Purpose:   Presenter script (3 min): four scenes + discount honesty, fallback, "Without Boris" table, pitch mapped to the four judging criteria
@@ -10,12 +10,15 @@ Purpose:   Presenter script (3 min): four scenes + discount honesty, fallback, "
 ## Live demo in the browser (variant)
 Start: `docker compose up -d --build app`, open `http://localhost:6274`. Reset to fresh state first (see `doc/runbooks/docker_app.md`).
 Without an OpenAI key the chat runs in **offline mode** (idealo mock, no LLM; status shows `mode: "offline-mock"`). With a key in `.env` it uses the LLM and the real idealo MCP.
-**Not tried yet:** nobody has clicked this through in a browser; only the HTTP smoke test (`node scripts/ui_wallet_smoke.mjs`, 17 of 17) ran. The family accounts are a demo sign-in, not authentication.
+**Not tried yet:** nobody has clicked this through in a browser; only the HTTP smoke tests (`node scripts/ui_wallet_smoke.mjs`, 32 offline steps; `node scripts/offline_agent_budget_check.mjs`, 6 of 6) and headless screenshots at 1280px ran.
+The mock catalogue now has 13 products (invented data). Demo links: `?as=parent|teen|child` signs in, `?q=<text>` fills the chat. The family accounts are a demo sign-in, not authentication.
 1. Sign in as **Teen**. Ask: `Der Hobbit`. Buy the cheapest offer. Expect: the order goes through and the budget drops.
 2. Still Teen. Ask for headphones (SoundMax X1) and press Buy. Expect: blocked as INFLATED (the "was" price fails `check_discount`).
 3. Sign in as **Child**. Buy the Hobbit. Expect: "waiting for parent approval", no spend.
 4. Sign in as **Parent**. Open requests: Reject one, Approve another. Expect: a rejected request never becomes an order; an approved one counts against the child's cap and the family cap.
-Fallback: `uv run python scripts/demo.py` (below).
+5. Budget-aware offers. Open `http://localhost:6274/?as=child&q=headphones` (sign in as **Child**, ask `headphones`). Expect: "Nothing in this search fits your budget: the cheapest offer is …, you have … left this month" and only affordable alternatives, no 299 EUR offer.
+6. Open `http://localhost:6274/?as=parent&q=headphones` (sign in as **Parent**, ask `headphones`). Expect: the headphones are INFLATED and not offered for purchase.
+Fallback: `uv run python scripts/demo.py` (below). Steps 5 and 6 were checked only through the offline assistant script (child: screenshot of the running container, headless); the parent INFLATED view was not seen rendered.
 
 
 Family: parent (no personal cap), teen (50.00 EUR/month, orders alone), child (20.00 EUR/month, needs approval). Family cap 400.00 EUR.
