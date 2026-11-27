@@ -1,6 +1,6 @@
 """
 Author:    mikomeller
-Version:   0.1.0
+Version:   0.1.1
 Filename:  service.py
 Pathname:  src/family_shopper/wallet/service.py
 Purpose:   WalletService: one method per tool, caps and roles, BEGIN IMMEDIATE writes; no MCP imports
@@ -84,6 +84,16 @@ class RequestResult(BaseModel):
     price_cents: int
     remaining_personal_cents: int | None
     remaining_family_cents: int
+
+
+class RejectedResult(BaseModel):
+    ok: Literal[True] = True
+    request_id: int
+    status: Literal["rejected"] = "rejected"
+    member_id: str
+    product_name: str
+    price_cents: int
+    rejected_by: str
 
 
 class BudgetSetResult(BaseModel):
@@ -377,6 +387,33 @@ class WalletService:
 
         return self._run(body)
 
+    def reject_request(self, request_id: int) -> BaseModel:
+        def body(conn: sqlite3.Connection, caller: Member, month: str) -> BaseModel:
+            if request_id is None:
+                raise Refuse("INVALID_INPUT", "Invalid input: request_id is missing.")
+            if not isinstance(request_id, int) or isinstance(request_id, bool):
+                raise Refuse("INVALID_INPUT", "Invalid input: request_id has the wrong type.")
+            if caller.role != "parent":
+                raise Refuse("NOT_A_PARENT", "Only a parent can reject requests.")
+            conn.execute("BEGIN IMMEDIATE")
+            req = conn.execute("SELECT * FROM approval_requests WHERE id=?", (request_id,)).fetchone()
+            if req is None:
+                raise Refuse("REQUEST_NOT_FOUND", f"Approval request {request_id} does not exist.")
+            if req["status"] != "open":
+                raise Refuse("REQUEST_NOT_OPEN", f"Approval request {request_id} is already {req['status']}.")
+            conn.execute(
+                "UPDATE approval_requests SET status='rejected', decided_at=?, decided_by=?"
+                " WHERE id=? AND status='open'",
+                (self._now_iso(), caller.id, request_id),
+            )
+            conn.execute("COMMIT")
+            return RejectedResult(
+                request_id=request_id, member_id=req["member_id"], product_name=req["product_name"],
+                price_cents=req["price_cents"], rejected_by=caller.id,
+            )  # fmt: skip
+
+        return self._run(body)
+
     def set_budget(self, target: str, cap_cents: int | None) -> BaseModel:
         def body(conn: sqlite3.Connection, caller: Member, month: str) -> BaseModel:
             tgt = _text("target", target)
@@ -430,8 +467,10 @@ class WalletService:
 
     def list_requests(self, status: str | None = "open") -> BaseModel:
         def body(conn: sqlite3.Connection, caller: Member, month: str) -> BaseModel:
-            if status is not None and status not in ("open", "approved"):
-                raise Refuse("INVALID_INPUT", "Invalid input: status must be 'open' or 'approved'.")
+            if status is not None and status not in ("open", "approved", "rejected"):
+                raise Refuse(
+                    "INVALID_INPUT", "Invalid input: status must be 'open', 'approved' or 'rejected'."
+                )
             q, args = "SELECT * FROM approval_requests WHERE 1=1", []
             if status is not None:
                 q += " AND status=?"

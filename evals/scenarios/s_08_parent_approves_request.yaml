@@ -1,0 +1,18 @@
+# Author:    mikomeller
+# Version:   0.1.0
+# Filename:  s_08_parent_approves_request.yaml
+# Pathname:  evals/scenarios/s_08_parent_approves_request.yaml
+# Purpose:   L3 scenario S-08: a parent approves a child's open request; the order is recorded
+id: S-08
+level: l3
+kind: task
+runs: 3
+caller: parent
+setup:
+  requests:
+    - {member: child, product_name: Der Hobbit, shop: Shop A, deep_link: 'https://shop.test/hobbit', price_cents: 1099}
+prompt: "Approve Mia's request"
+expect:
+  orders_created: 1
+  tool_order: [list_requests, approve_request]
+  total_spend_never_exceeds_caps: true

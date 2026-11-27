@@ -1,7 +1,7 @@
 {
   "_header": {
     "Author": "mikomeller",
-    "Version": "0.1.3",
+    "Version": "0.1.4",
     "Filename": "backlog.json",
     "Pathname": "scripts/backlog.json",
     "Purpose": "Backlog for 12_family_shopper_agent: labels, milestones, Project fields, epics and stories (a story names its epic in 'parent') read by setup_github.py"
@@ -871,6 +871,91 @@
         "Judging criterion": "2 Trust you can see"
       },
       "body": "## Why\nThe verdict only helps if the agent asks for it before spending.\n\n## Tasks\n- [ ] System prompt: call `check_discount` with idealo numbers when a product is advertised as reduced; report the verdict; INFLATED warns, it does not block\n- [ ] Demo scene: headphones \"was 449 €\" → INFLATED\n- [ ] Eval scenario S-11 in `doc/evals/eval_plan.md` (teen asks for a \"reduced\" product; `check_discount` is called before `place_order`)\n\n## Acceptance criteria\n- [ ] Tool-call trace shows `check_discount` before `place_order` (L3, needs the Boris agent)\n- [ ] Decision by the owner: where does `sale_days` come from?"
+    },
+    {
+      "title": "Parent can reject an approval request",
+      "labels": [
+        "type:task",
+        "area:wallet-mcp"
+      ],
+      "milestone": "M1 Core build",
+      "parent": "Epic E1: Family Wallet MCP",
+      "fields": {
+        "Stage": "In progress",
+        "Priority": "P0",
+        "Size": "S",
+        "Boris feature": "None",
+        "Judging criterion": "3 More freedom safely"
+      },
+      "body": "## Why\nOwner decision 2026-11-27: a parent can say no. Until now a request could only stay open or be approved.\n\n## Tasks\n- [ ] Design: tool `reject_request(request_id)` in `doc/design/wallet_mcp.md` and the diagram\n- [ ] Wallet: parent only, one write transaction, status `rejected`, no order, no spend\n- [ ] `list_requests` accepts `rejected`\n- [ ] Tests: role refusal, reject twice, approve after reject, concurrent approve and reject\n\n## Acceptance criteria\n- [ ] A rejected request can never become an order\n- [ ] `uv run pytest -q` green in GitHub Actions"
+    },
+    {
+      "title": "An inflated discount blocks the order",
+      "labels": [
+        "type:task",
+        "area:agent"
+      ],
+      "milestone": "M1 Core build",
+      "parent": "Epic E7: Discount honesty check (from ticket #25)",
+      "fields": {
+        "Stage": "In progress",
+        "Priority": "P0",
+        "Size": "S",
+        "Boris feature": "None",
+        "Judging criterion": "2 Trust you can see"
+      },
+      "body": "## Why\nOwner decision 2026-11-27: verdict INFLATED blocks the order (before: warn only).\n\n## Tasks\n- [ ] Purchase path of the web UI server: `check_discount` before the wallet call when a \"was\" price is claimed; INFLATED → no wallet call\n- [ ] System prompt: INFLATED → do not order\n- [ ] Eval scenario S-13 and the updated S-11\n\n## Acceptance criteria\n- [ ] Headphones \"was 449 €\" → blocked, zero orders in the wallet\n- [ ] A genuine discount still orders\n\nLimit: the wallet has no price history and cannot verify a discount itself; the block lives in the purchase path and in the agent."
+    },
+    {
+      "title": "Web UI as wallet front end: family accounts and offline chat mode",
+      "labels": [
+        "type:task",
+        "area:agent"
+      ],
+      "milestone": "M1 Core build",
+      "parent": "Epic E2: Agent and purchase flow",
+      "fields": {
+        "Stage": "In progress",
+        "Priority": "P0",
+        "Size": "M",
+        "Boris feature": "Identity",
+        "Judging criterion": "1 Job worth doing"
+      },
+      "body": "## Why\nThe UI from PR #33 must show the family with separate accounts and must be testable without an OpenAI key and without idealo OAuth.\n\n## Tasks\n- [ ] Account switcher parent / teen / child; the signed-in member is the caller, a body field cannot override it\n- [ ] Approve and reject buttons for the parent; the wallet refuses anyone else\n- [ ] Offline chat mode on the idealo mock when no OpenAI key is set\n- [ ] Smoke test `scripts/ui_wallet_smoke.mjs` covers all of it\n- [ ] `src/cli.js` no longer bypasses the wallet (or is removed with the owner's go)\n\n## Acceptance criteria\n- [ ] Smoke test passes against a fresh wallet\n- [ ] Chat with a real OpenAI key and live idealo tried once by a person\n\nThe sign-in is simulated; in production the caller identity comes from TrustBoris."
+    },
+    {
+      "title": "Docker: the full application behind one endpoint, Boris CLI in its own container",
+      "labels": [
+        "type:task",
+        "area:devenv"
+      ],
+      "milestone": "M1 Core build",
+      "parent": "Epic E6: Dev environment and orchestration",
+      "fields": {
+        "Stage": "In progress",
+        "Priority": "P0",
+        "Size": "M",
+        "Boris feature": "None",
+        "Judging criterion": "4 Only what matters"
+      },
+      "body": "## Why\nOwner request 2026-11-27: isolate the apps with Docker and give one endpoint to test the full application.\n\n## Tasks\n- [ ] Diagram `doc/diagrams/docker_deployment.mmd` first\n- [ ] `docker/app/Dockerfile` (Node UI + Python wallet + idealo mock) and `compose.yaml`\n- [ ] Boris CLI image with the Docker client; compose profile `boris`\n- [ ] Runbook `doc/runbooks/docker_app.md`\n\n## Acceptance criteria\n- [ ] `docker compose up -d app` → `http://localhost:6274` answers and a purchase goes through the wallet\n- [ ] `boris doctor` in the container shows only \"not signed in\" as a problem"
+    },
+    {
+      "title": "Bring the Boris connection details, OpenAI key and idealo sign-in onto the demo machine",
+      "labels": [
+        "type:task",
+        "area:boris"
+      ],
+      "milestone": "M2 Trust layer (Boris)",
+      "parent": "Epic E3: Trust layer (Boris)",
+      "fields": {
+        "Stage": "Ready",
+        "Priority": "P0",
+        "Size": "S",
+        "Boris feature": "Identity",
+        "Judging criterion": "2 Trust you can see"
+      },
+      "body": "## Why\nThe branch `rodrigo-agent` and PR #33 contain no Boris connection details, no MCP credentials and no OpenAI key (checked 2026-11-27: `.env.example` has an empty key; idealo OAuth tokens live in the git-ignored `.data/idealo-oauth.json` on the machine that signed in). Secrets must not be pushed to this public repo.\n\n## Tasks (human)\n- [ ] `OPENAI_API_KEY` in `.env` in the project folder\n- [ ] idealo: copy `.data/idealo-oauth.json` from the machine that signed in, or click \"Connect idealo\" in the UI\n- [ ] Boris: agent URL / access point and how the agent reaches the two MCP servers → `doc/research/boris_identity_spike.md`\n- [ ] `boris login --device` in the container\n\n## Acceptance criteria\n- [ ] Chat works with the real model and live idealo\n- [ ] The Family Buyer agent in Boris calls the wallet"
     }
   ]
 }

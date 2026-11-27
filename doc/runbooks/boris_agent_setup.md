@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.0
+Version:   0.1.1
 Filename:  boris_agent_setup.md
 Pathname:  doc/runbooks/boris_agent_setup.md
 Purpose:   Runbook for the human: create the Family Buyer agent in Boris and set identity, gating, screening, throttle, cache, backup model (stories #9, #11-#16)
@@ -50,6 +50,7 @@ Matrix from `doc/design/wallet_mcp.md`. "Wallet" = enforced by the wallet. "Bori
 | `place_order` | yes / visible | yes (within caps) / visible | no `NOT_ALLOWED_FOR_ROLE` / hidden |
 | `request_approval` | no `NOT_ALLOWED_FOR_ROLE` / hidden | no `NOT_ALLOWED_FOR_ROLE` / hidden | yes / visible |
 | `approve_request` | yes / visible | no `NOT_A_PARENT` / hidden | no `NOT_A_PARENT` / hidden |
+| `reject_request` | yes / visible | no `NOT_A_PARENT` / hidden | no `NOT_A_PARENT` / hidden |
 | `set_budget` | yes / visible | no `NOT_A_PARENT` / hidden | no `NOT_A_PARENT` / hidden |
 | `list_orders` | all / visible | own / visible | own / visible |
 | `list_requests` | all / visible | own / hidden | own / visible |

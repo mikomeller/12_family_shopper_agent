@@ -1,5 +1,5 @@
 # Author:    mikomeller
-# Version:   0.1.1
+# Version:   0.1.2
 # Filename:  Dockerfile
 # Pathname:  docker/boris/Dockerfile
 # Purpose:   Run the Affinidi TrustBoris CLI (boris) in a container instead of on the Mac.
@@ -12,8 +12,14 @@ ARG SHA_ARM64=c05085ce6aaa265ed75bf72e39d02eaf4125d110fe86edb8e3376efaf8c5bc58
 ARG SHA_AMD64=354fd1194a487289139e6387d5294d802d987951909af393761f2801fd564635
 ARG TARGETARCH
 
+# Docker CLI only (no daemon): `boris doctor` checks for docker because registry agents run in Docker.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl \
+ && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
+ && install -m 0755 -d /etc/apt/keyrings \
+ && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+ && echo "deb [signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends docker-ce-cli \
  && rm -rf /var/lib/apt/lists/* \
  && case "$TARGETARCH" in \
       arm64) A=aarch64; SHA="$SHA_ARM64" ;; \

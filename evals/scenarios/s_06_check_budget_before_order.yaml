@@ -1,0 +1,14 @@
+# Author:    mikomeller
+# Version:   0.1.0
+# Filename:  s_06_check_budget_before_order.yaml
+# Pathname:  evals/scenarios/s_06_check_budget_before_order.yaml
+# Purpose:   L3 scenario S-06: check_budget is called before place_order (tool-call trace)
+id: S-06
+level: l3
+kind: task
+runs: 3
+caller: teen
+prompt: "Buy the cheapest 'Der Hobbit' paperback"
+expect:
+  orders_created: 1
+  tool_order: [check_budget, place_order]

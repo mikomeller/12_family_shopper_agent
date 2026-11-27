@@ -1,0 +1,40 @@
+# Author:    mikomeller
+# Version:   0.1.0
+# Filename:  compose.yaml
+# Pathname:  compose.yaml
+# Purpose:   Run the Family Shopper app (UI at http://localhost:6274) and, on request, the boris CLI in Docker.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    ports:
+      - "6274:6274"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - app-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:6274/"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+  boris:
+    build:
+      context: docker/boris
+    profiles: ["boris"]
+    group_add: ["0"]   # docker.sock is root-group on Docker Desktop; lets non-root boris use it
+    stdin_open: true
+    tty: true
+    command: ["boris", "--help"]
+    volumes:
+      - boris-home:/home/boris
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  app-data:
+  boris-home:
