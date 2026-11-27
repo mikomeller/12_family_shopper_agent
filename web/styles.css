@@ -54,3 +54,9 @@
 .modal-save:hover:not(:disabled){background:#40594a}
 .modal-actions button:disabled,.modal-close:disabled{opacity:.6;cursor:wait}
 @media(max-width:540px){.modal-backdrop{padding:14px}.member-modal{padding:25px 21px;border-radius:13px}}
+.purchase-confirm-modal{position:relative;width:min(100%,440px);padding:30px;background:#fff;border:1px solid #e6eae4;border-radius:16px;box-shadow:0 22px 70px #15251c38;color:#34413a}
+.purchase-confirm-modal h2{margin:8px 0 9px;font:700 23px Manrope,sans-serif;letter-spacing:-.5px}
+.purchase-confirm-modal>p{margin:0 0 14px;color:#4f5d54;font-size:14px;line-height:1.6}
+.purchase-confirm-note{padding:11px 12px;border-radius:8px;background:#f1f5ef;color:#66756a;font-size:12px;line-height:1.55}
+.purchase-confirm-modal .modal-actions{margin-top:20px}
+@media(max-width:540px){.purchase-confirm-modal{padding:25px 21px;border-radius:13px}}

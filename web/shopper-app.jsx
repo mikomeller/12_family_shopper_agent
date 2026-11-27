@@ -58,6 +58,8 @@ function getProductFromRow(row) {
 
 function FormattedReply({ content, memberName, onMockPurchase }) {
   const [purchaseStates, setPurchaseStates] = useState({});
+  const [purchaseConfirmation, setPurchaseConfirmation] = useState(null);
+  const [purchaseConfirming, setPurchaseConfirming] = useState(false);
   const lines = String(content).split(/\r?\n/);
   const blocks = [];
   let paragraph = [];
@@ -91,16 +93,33 @@ function FormattedReply({ content, memberName, onMockPurchase }) {
     paragraph.push(line);
   }
   flushParagraph();
-  async function recordFromRow(row, rowIndex) {
-    const product = getProductFromRow(row);
-    if (!product || !memberName || !onMockPurchase) return;
-    setPurchaseStates((current) => ({ ...current, [rowIndex]: { status: "pending" } }));
+  async function confirmPurchase() {
+    if (!purchaseConfirmation || !onMockPurchase) return;
+    const { product, rowKey } = purchaseConfirmation;
+    setPurchaseStates((current) => ({ ...current, [rowKey]: { status: "pending" } }));
+    setPurchaseConfirming(true);
     try {
       await onMockPurchase({ ...product, memberName });
-      setPurchaseStates((current) => ({ ...current, [rowIndex]: { status: "done" } }));
+      setPurchaseStates((current) => ({ ...current, [rowKey]: { status: "done" } }));
+      setPurchaseConfirmation(null);
     } catch (error) {
-      setPurchaseStates((current) => ({ ...current, [rowIndex]: { status: "error", message: error.message } }));
+      setPurchaseStates((current) => ({ ...current, [rowKey]: { status: "error", message: error.message } }));
+      setPurchaseConfirmation((current) => current ? { ...current, error: error.message } : current);
+    } finally {
+      setPurchaseConfirming(false);
     }
+  }
+
+  function cancelPurchaseConfirmation() {
+    if (purchaseConfirming) return;
+    if (purchaseConfirmation?.rowKey) {
+      setPurchaseStates((current) => {
+        const next = { ...current };
+        delete next[purchaseConfirmation.rowKey];
+        return next;
+      });
+    }
+    setPurchaseConfirmation(null);
   }
   return <div className="formatted-reply">{blocks.map((block, index) => {
     if (block.type === "table") {
@@ -113,12 +132,23 @@ function FormattedReply({ content, memberName, onMockPurchase }) {
         const product = getProductFromRow(row);
         const state = purchaseStates[`${index}-${rowIndex}`];
         const isCheapest = rowIndex === cheapestRowIndex;
-        return <tr key={rowIndex} className={isCheapest ? "cheapest-option" : ""}>{header.map((_, cellIndex) => <td key={cellIndex}>{cellIndex === 0 ? <><InlineText text={row[cellIndex] || "—"} />{isCheapest && <span className="cheapest-tag">{cheapestLabel}</span>}</> : <InlineText text={row[cellIndex] || "—"} />}</td>)}{memberName && <td className="reply-action-cell">{product ? <><button className="mock-buy-button" type="button" disabled={state?.status === "pending" || state?.status === "done"} aria-label={`Record a mock purchase of ${product.productName} for ${memberName}`} onClick={() => recordFromRow(row, `${index}-${rowIndex}`)}>{state?.status === "pending" ? "Adding…" : state?.status === "done" ? "Added" : "Buy (mock)"}</button>{state?.status === "error" && <span className="mock-buy-error" role="alert">{state.message}</span>}</> : "—"}</td>}</tr>;
+        const shopIndex = header.findIndex((cell) => /shop|store|seller/i.test(cell));
+        const shopName = shopIndex >= 0 ? row[shopIndex]?.replace(/\*\*/g, "") : "";
+        return <tr key={rowIndex} className={isCheapest ? "cheapest-option" : ""}>{header.map((_, cellIndex) => <td key={cellIndex}>{cellIndex === 0 ? <><InlineText text={row[cellIndex] || "—"} />{isCheapest && <span className="cheapest-tag">{cheapestLabel}</span>}</> : <InlineText text={row[cellIndex] || "—"} />}</td>)}{memberName && <td className="reply-action-cell">{product ? <><button className="mock-buy-button" type="button" disabled={state?.status === "pending" || state?.status === "done"} aria-label={`Buy ${product.productName} for ${memberName} (mock)`} onClick={() => setPurchaseConfirmation({ product: { ...product, shopName }, memberName, rowKey: `${index}-${rowIndex}` })}>{state?.status === "pending" ? "Adding…" : state?.status === "done" ? "Added" : "Buy (mock)"}</button>{state?.status === "error" && <span className="mock-buy-error" role="alert">{state.message}</span>}</> : "—"}</td>}</tr>;
       })}</tbody></table></div>;
     }
     if (block.type === "list") return <ul key={index}>{block.items.map((item, itemIndex) => <li key={itemIndex}><InlineText text={item} /></li>)}</ul>;
     return <p key={index}><InlineText text={block.text} /></p>;
-  })}</div>;
+  })}{purchaseConfirmation && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) cancelPurchaseConfirmation(); }}>
+    <section className="purchase-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="purchase-confirm-title" aria-describedby="purchase-confirm-description">
+      <div className="modal-eyebrow">DEMO PURCHASE</div>
+      <h2 id="purchase-confirm-title">Record this mock purchase?</h2>
+      <p id="purchase-confirm-description">{purchaseConfirmation.product.productName}{purchaseConfirmation.product.shopName ? ` from ${purchaseConfirmation.product.shopName}` : ""} for {purchaseConfirmation.memberName} at {money(purchaseConfirmation.product.priceEur)}.</p>
+      <div className="purchase-confirm-note">This only updates the local demo budget. No order will be placed and no payment will be taken.</div>
+      {purchaseConfirmation.error && <div className="modal-error" role="alert">{purchaseConfirmation.error}</div>}
+      <div className="modal-actions"><button type="button" className="modal-cancel" onClick={cancelPurchaseConfirmation} disabled={purchaseConfirming}>Cancel</button><button type="button" className="modal-save" onClick={confirmPurchase} disabled={purchaseConfirming}>{purchaseConfirming ? "Recording…" : "Yes, record mock purchase"}</button></div>
+    </section>
+  </div>}</div>;
 }
 
 function MemberCard({ member }) {
