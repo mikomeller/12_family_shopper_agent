@@ -1,10 +1,11 @@
 // Author:    mikomeller
-// Version:   0.1.0
+// Version:   0.1.1
 // Filename:  story_replay.mjs
 // Pathname:  scripts/story_replay.mjs
 // Purpose:   Replays the guided story in headless Chrome over the DevTools protocol: clicks "Play the story",
 //            confirms the demo reset when the wallet is used, waits for "Story finished". Exit 0 only if it finished.
-// Usage:     node scripts/story_replay.mjs http://localhost:6274/ [output-dir]   (needs Google Chrome; ALLOW_DEMO_RESET=1 on the server)
+// Usage:     node scripts/story_replay.mjs http://localhost:6274/ [output-dir]   (needs Google Chrome; ALLOW_DEMO_RESET=1 on the server;
+//            for another page origin start the server with a matching APP_ORIGINS, e.g. APP_ORIGINS=http://localhost:6280)
 import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
 const url = process.argv[2] || "http://localhost:6274/", out = process.argv[3] || (await import("node:os")).tmpdir();

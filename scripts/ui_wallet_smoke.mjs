@@ -1,13 +1,15 @@
 // Author:    mikomeller
-// Version:   0.1.8
+// Version:   0.1.9
 // Filename:  ui_wallet_smoke.mjs
 // Pathname:  scripts/ui_wallet_smoke.mjs
 // Purpose:   Smoke test of the Node UI server (offline mode, no OpenAI key) against the Family Wallet; start the server with a fresh WALLET_DB
 const base = process.env.UI_BASE || "http://127.0.0.1:3001";
+const uiOrigin = process.env.UI_ORIGIN || "http://localhost:6274";
 let failed = false;
 
-async function call(method, url, body, member) {
+async function call(method, url, body, member, origin) {
   const headers = { "Content-Type": "application/json" };
+  if (origin !== undefined) headers.Origin = origin;
   if (member) headers["X-Family-Member"] = member;
   const res = await fetch(base + url, { method, headers, body: body ? JSON.stringify(body) : undefined });
   return { status: res.status, body: await res.json().catch(() => ({})) };
@@ -202,14 +204,23 @@ if (process.env.FAKE_LLM === "1") {
 }
 
 if (process.env.DEMO_RESET === "1") {
-  const probe = await call("POST", "/api/demo/reset", { confirm: "reset-demo-wallet" }, "teen");
+  const probe = await call("POST", "/api/demo/reset", { confirm: "reset-demo-wallet" }, "teen", uiOrigin);
   if (probe.status === 404) {
     console.log("SKIP reset (server has reset disabled)");
   } else {
     check("reset as teen is 403", probe.status === 403, probe.body.error);
-    const noConfirm = await call("POST", "/api/demo/reset", {}, "parent");
+    const confirmBody = { confirm: "reset-demo-wallet" };
+    const before = await orderCount();
+    const noOrigin = await call("POST", "/api/demo/reset", confirmBody, "parent");
+    check("reset as parent with confirm but without Origin is 403", noOrigin.status === 403 && /own page/.test(noOrigin.body.error || ""), noOrigin.body.error);
+    for (const bad of ["http://evil.example", "http://localhost:6274.evil.example", "null"]) {
+      const r = await call("POST", "/api/demo/reset", confirmBody, "parent", bad);
+      check(`reset with Origin ${bad} is 403`, r.status === 403, r.body.error);
+    }
+    check("nothing deleted by refused resets", (await orderCount()) === before, `${before} -> ${await orderCount()}`);
+    const noConfirm = await call("POST", "/api/demo/reset", {}, "parent", uiOrigin);
     check("reset as parent without confirm is 400", noConfirm.status === 400, noConfirm.body.error);
-    const ok = await call("POST", "/api/demo/reset", { confirm: "reset-demo-wallet" }, "parent");
+    const ok = await call("POST", "/api/demo/reset", confirmBody, "parent", uiOrigin);
     check("reset as parent with confirm is 200 ok:true", ok.status === 200 && ok.body.ok === true, JSON.stringify(ok.body));
     const after = await call("GET", "/api/state", null, "parent");
     const rem = (id) => after.body.members?.find((m) => m.id === id)?.remainingEur;

@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.8
+Version:   0.1.9
 Filename:  HANDOVER.md
 Pathname:  doc/handover/HANDOVER.md
 Purpose:   Handover for whoever continues 12_family_shopper_agent (person or Claude Code session):
@@ -170,7 +170,7 @@ makes it the main session. To make it the default, add `{"agent": "orchestrator"
 | A child or teen can create unlimited open requests at any price (reviewer remark) | a parent's queue can be flooded | owner decision 2026-11-27: no limit wanted |
 | `GET /api/llm` readable by every member; `/api/idealo/reconnect` needs no sign-in | information and a side effect (writes `.data/idealo-oauth.json`) | acceptable on the 127.0.0.1 bind; not fixed |
 | `src/cli.js` (`npm start`) still bypasses the wallet | float budget, no rules | rewire or remove (owner's go) |
-| Demo reset (open reviewer remarks, non-blocking) | no Origin check, so any local process can reset when enabled (acceptable on the 127.0.0.1 bind, off by default); no timeout on the reset script (a hang would block wallet calls); if a reset fails the UI leaves the account on Parent; `story_replay.mjs` may leave Chrome running if it crashes; `reset_demo_wallet.py` would create wallet tables in a non-wallet sqlite file if `WALLET_DB` pointed at one | keep `ALLOW_DEMO_RESET` off outside the demo |
+| Demo reset (open reviewer remarks, non-blocking) | no timeout on the reset script (a hang would block wallet calls); if a reset fails the UI leaves the account on Parent; `story_replay.mjs` may leave Chrome running if it crashes; `reset_demo_wallet.py` would create wallet tables in a non-wallet sqlite file if `WALLET_DB` pointed at one | keep `ALLOW_DEMO_RESET` off outside the demo. Done: Origin check on the reset (`APP_ORIGINS`, default localhost/127.0.0.1:6274; other web pages get 403, a local program can still forge the header) |
 | Auto-merge job is skipped when a push and the label arrive together | PR stays open | re-apply the label; fix: trigger on the label event without cancelling it |
 | OpenAI key pasted in a chat | key may leak | revoke after the event; the key is only in the git-ignored `.env` |
 | Real model differs from the fake one | a demo question may loop or lose the product reference | run the two demo questions once with the real model before the demo; the story uses the deterministic assistant |
