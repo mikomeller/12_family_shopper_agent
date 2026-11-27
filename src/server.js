@@ -89,7 +89,7 @@ async function getInstructions(messages) {
     ? `\n\nResolved shopping member: ${selectedMember.name}. Remaining demo budget: ${euro(remaining(selectedMember))}. The user has already named this member; do not ask who the request is for. Read the latest message as the shopping request and proceed with idealo search when it names a product or category. Ask a follow-up only if a genuinely necessary product detail is missing.`
     : "";
   return {
-    instructions: `${skill}\n\nCurrent family demo budgets (source of truth):\n${JSON.stringify(profiles, null, 2)}${memberContext}\n\nFor live shopping use only the idealo MCP tools listed in the tool allowlist. For any mock purchase, call record_mock_purchase; never represent a tool call as a real order.`,
+    instructions: `${skill}\n\nCurrent family demo budgets (source of truth):\n${JSON.stringify(profiles, null, 2)}${memberContext}\n\nAlways respond to the user in English. Keep product, brand, and shop names in their original form. For live shopping use only the idealo MCP tools listed in the tool allowlist. For any mock purchase, call record_mock_purchase; never represent a tool call as a real order.`,
     memberName: selectedMember?.name || null,
   };
 }
