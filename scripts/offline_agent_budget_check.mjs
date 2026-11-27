@@ -1,5 +1,5 @@
 // Author:    mikomeller
-// Version:   0.1.1
+// Version:   0.1.2
 // Filename:  offline_agent_budget_check.mjs
 // Pathname:  scripts/offline_agent_budget_check.mjs
 // Purpose:   Checks that the offline responder only offers what the wallet says fits the signed-in member (no HTTP server needed)
@@ -27,14 +27,19 @@ const NOFIT = /fits your budget.*left this month/s;
 try {
   for (const m of ["child", "teen"]) {
     const r = await ask(m, "headphones");
-    check(`${m} + headphones: no row, no 299 price cell, budget sentence`, !hasRow(r, "SoundMax") && !/\|\s*€\s*299/.test(r) && NOFIT.test(r), r.split("\n")[0]);
+    check(`${m} + headphones: no row, no 299 price cell, budget sentence, no ask link (INFLATED)`, !hasRow(r, "SoundMax") && !/\|\s*€\s*299/.test(r) && NOFIT.test(r) && !/&ask=1/.test(r), r.split("\n")[0]);
   }
   const p = await ask("parent", "headphones");
   check("parent + headphones: INFLATED verdict, no buyable row", /INFLATED/.test(p) && !hasRow(p, "SoundMax") && /not offered: the advertised discount is not real/.test(p));
   const t = await ask("teen", "Der Hobbit");
   check("teen + Der Hobbit: table with 10,99", hasRow(t) && /€ 10,99/.test(t));
   const c = await ask("child", "Der Hobbit");
-  check("child + Der Hobbit: table with 10,99 and approval line", hasRow(c) && /€ 10,99/.test(c) && /A parent has to approve this before anything is ordered\./.test(c));
+  check("child + Der Hobbit: table with 10,99, 'Within your budget' line, no approval sentence", hasRow(c) && /€ 10,99/.test(c) && /Within your budget: you can order this yourself\./.test(c) && !/has to approve/.test(c) && !/&ask=1/.test(c));
+  const g = await ask("child", "Familienspiel");
+  check("child + Familienspiel (board game): no buyable row, 'a parent can step in' line with &ask=1 link outside a table",
+    !hasRow(g, "Wuerfelwald") && /a parent can step in: .* at € [\d,]+\. \[Ask a parent\]\(https?:\/\/[^)]*#ref=boardgame-dice&ask=1\)/.test(g) && !/^\|.*ask=1/m.test(g), g.split("\n").slice(0, 3).join(" / "));
+  const gt = await ask("teen", "Familienspiel");
+  check("teen + Familienspiel: no ask link", !/&ask=1/.test(gt));
   // reduce teen's remaining budget with real orders
   for (let i = 0; i < 20; i++) {
     const b = await callWallet("teen", "check_budget");

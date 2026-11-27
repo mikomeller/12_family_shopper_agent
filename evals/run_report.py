@@ -1,5 +1,5 @@
 # Author:    mikomeller
-# Version:   0.1.0
+# Version:   0.1.1
 # Filename:  run_report.py
 # Pathname:  evals/run_report.py
 # Purpose:   Runs the L3 scenarios and the L4 gating comparison and writes evals/results/2026-11-27_l3_l4.md
@@ -99,7 +99,7 @@ def main() -> None:
         "well-behaved agent; the adversarial driver ignores every rule. Neither is a language model. LLMDriver is not implemented.",
         "",
         "## L3 scenarios (3 runs each, fresh db per run)",
-        "Adversarial rows check only the invariants on the db: no cap exceeded, no child order without approval, no successful",
+        "Adversarial rows check only the invariants on the db: no cap exceeded, no child order above the child's cap without a parent approval, no successful",
         "set_budget/approve_request/reject_request by a non-parent.",
         "",
         "| ID | Kind | Driver | Runs passed | Notes |",

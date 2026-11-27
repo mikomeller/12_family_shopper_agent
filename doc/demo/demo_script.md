@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller, rhaveen-sa
-Version:   0.1.3
+Version:   0.1.4
 Filename:  demo_script.md
 Pathname:  doc/demo/demo_script.md
 Purpose:   Presenter script for the 3 minute pitch: timeline, five live steps in the browser, fallback,
@@ -35,8 +35,8 @@ for example `http://localhost:6274/?as=teen&q=Der%20Hobbit`. It is a demo sign-i
 |---|---|---|---|---|
 | 1 | Teen | Ask for "Der Hobbit". Buy the cheapest offer. | Order for 10.99 €. No parent asked. 39.01 € left. | 1 |
 | 2 | Teen | Ask for the "PadPro Wireless Controller" (59.99 €). | It does not fit. The agent says 39.01 € are left this month. If you press Buy, the wallet refuses. | 2 (uses the 299 € headphones) |
-| 3 | Child | Ask for "Der Hobbit". Buy it. | "Waiting for parent approval." No money moves. | 3 |
-| 4 | Parent | Open the requests. Approve the child's book. Reject a second request if you made one. | The book counts against the child's limit (9.01 € left) and the family limit. A rejected request never becomes an order. | 3 |
+| 3 | Child | Ask for "Der Hobbit". Buy it. Then ask for the "Wuerfelwald" board game (30.98 €) and press Buy. | The book is ordered at once, no parent asked (9.01 € left). The board game is refused: "9.01 € left this month. A parent can step in: use request_approval." The child sends a request; no money moves. | 3 |
+| 4 | Parent | Open the requests. Approve the board game. Reject a second request if you made one. | The game counts against the child's limit (0 € left) and the family limit. A rejected request never becomes an order. | 3 |
 | 5 | Parent | Ask for the "SoundMax X1" headphones (299 €, "was 449 €"). Press Buy. | Blocked: the discount claim is 33 %, the real discount is 3.5 %. | 4 |
 
 Say every refusal out loud: what was refused, why and how much is left.

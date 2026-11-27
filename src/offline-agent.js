@@ -1,5 +1,5 @@
 // Author:    mikomeller
-// Version:   0.1.2
+// Version:   0.1.3
 // Filename:  offline-agent.js
 // Pathname:  src/offline-agent.js
 // Purpose:   Deterministic offline shopper (no LLM): talks to the idealo mock MCP over stdio, answers with an offers table and a discount verdict
@@ -49,7 +49,7 @@ export async function discountCheck(productRef, saleCents, claimedWasCents) {
 }
 
 const eurText = (c) => `€ ${(c / 100).toFixed(2).replace(".", ",")}`;
-const ALIAS = { backpack: "rucksack", schoolbag: "rucksack", kaffee: "coffee", kopfhoerer: "headphones" };
+const ALIAS = { backpack: "rucksack", schoolbag: "rucksack", kaffee: "coffee", kopfhoerer: "headphones", board: "familienspiel", boardgame: "familienspiel", game: "familienspiel" };
 const clean = (s) => String(s).replace(/[|\r\n]+/g, " ").trim();
 
 async function findProducts(text) {
@@ -80,13 +80,12 @@ export async function offlineReply(messages, memberId, callWallet) {
   const products = (await Promise.all(hits.map(loadProduct))).filter((p) => p.list.length);
   if (!products.length) return { reply: `No offers for ${clean(hits[0].title)} in the offline catalogue.` };
 
-  let needsApproval = false;
   const fitOffers = async (p) => {
-    const out = { fit: [], over: 0 };
+    const out = { fit: [], over: 0, ask: [] };
     for (const o of p.list) {
       const r = await callWallet(memberId, "check_budget", { price_cents: o.total_cents });
-      if (r.needs_approval) needsApproval = true;
-      if (r.ok !== false && r.fits === true) out.fit.push(o); else out.over += 1;
+      if (r.ok !== false && r.fits === true) out.fit.push(o);
+      else { out.over += 1; if (r.ok !== false && r.needs_approval === true) out.ask.push(o); }
     }
     return out;
   };
@@ -98,11 +97,15 @@ export async function offlineReply(messages, memberId, callWallet) {
   const budget = await callWallet(memberId, "check_budget");
   const fits = await Promise.all(products.map(fitOffers));
   const multi = products.length > 1;
-  const rows = [], notes = [], descriptions = [];
+  const rows = [], notes = [], descriptions = [], askLines = [];
   let overTotal = 0, fitTotal = 0;
   products.forEach((p, i) => {
     overTotal += fits[i].over; fitTotal += fits[i].fit.length;
     if (p.verdict) notes.push(`Discount check for ${clean(p.hit.title)}: advertised was-price ${eurText(p.was)}, verdict **${p.verdict.verdict}** - ${clean(p.verdict.reason || "")}`);
+    if (!p.inflated && fits[i].ask.length) {
+      const o = fits[i].ask[0];
+      askLines.push(`Above your budget \u2014 a parent can step in: ${clean(p.hit.title)} at ${eurText(o.total_cents)}. [Ask a parent](${o.deep_link}#ref=${encodeURIComponent(p.hit.product_ref)}&ask=1)`);
+    }
     if (p.inflated) {
       if (fits[i].fit.length) notes.push(`${clean(p.hit.title)}: not offered: the advertised discount is not real.`);
       return;
@@ -119,6 +122,7 @@ export async function offlineReply(messages, memberId, callWallet) {
   if (fitTotal === 0) {
     const cheapest = Math.min(...products.map((p) => p.list[0].total_cents));
     lines.push(`Nothing in this search fits your budget: the cheapest offer is ${eurText(cheapest)}, you have ${budget.ok === false ? "no budget information" : eurText(remaining)} left this month (family: ${budget.ok === false ? "unknown" : eurText(budget.remaining_family_cents)}).`);
+    if (askLines.length) lines.push("", ...askLines);
     // suggestions: other catalogue products of the same categories that fit
     const cats = new Set(products.map((p) => p.hit.category).filter(Boolean));
     const seen = new Set(products.map((p) => p.hit.product_ref));
@@ -135,14 +139,14 @@ export async function offlineReply(messages, memberId, callWallet) {
     if (sugg.length) {
       lines.push("", "Cheaper alternatives that fit your budget (price including shipping):", "", "| Offer | Shop | Total price |", "| --- | --- | --- |");
       for (const { p, o } of sugg) lines.push(...rowsFor(p, [o]));
-      if (needsApproval) lines.push("", "A parent has to approve this before anything is ordered.");
     }
   } else {
     if (rows.length) {
       lines.push(`Offers from the sample catalogue (price including shipping, cheapest first${multi ? ", cheapest offer per product" : ""}):`, "", "| Offer | Shop | Total price |", "| --- | --- | --- |", ...rows);
       if (descriptions.length) lines.push("", ...descriptions);
-      if (needsApproval) lines.push("", "A parent has to approve this before anything is ordered.");
+      if (budget.role === "child") lines.push("", "Within your budget: you can order this yourself.");
     }
+    if (askLines.length) lines.push("", ...askLines);
     if (overTotal) lines.push("", `${overTotal} more offers are over your remaining budget and are not shown.`);
   }
   if (notes.length) lines.push("", ...notes);

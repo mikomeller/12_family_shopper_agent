@@ -43,7 +43,8 @@ def test_l2_01_each_tool_valid_input_matches_schema(parent, teen, child, ledger)
     assert chk["personal_cap_cents"] == 5000 and chk["family_cap_cents"] == 40000
     assert chk["needs_approval"] is False and chk["fits"] is True
     assert dump(teen.check_budget())["fits"] is None
-    assert dump(child.check_budget())["needs_approval"] is True
+    assert dump(child.check_budget())["needs_approval"] is False  # no price
+    assert dump(child.check_budget(price_cents=2500))["needs_approval"] is True
     assert dump(parent.check_budget())["personal_cap_cents"] is None
 
     po = dump(teen.place_order(price_cents=1000, **ORDER))
@@ -215,9 +216,9 @@ def test_l2_05c_token_decides_member_not_arguments(token_service, clock, monkeyp
 
 # ---------------------------------------------------------------- L2-06 / L2-07
 def test_l2_06_child_place_order_refused_by_wallet(child, ledger):
-    r = dump(child.place_order(price_cents=100, **ORDER))  # well inside the 2000 cap
-    assert r["ok"] is False and r["error_code"] == "NOT_ALLOWED_FOR_ROLE"
-    assert r["reason"] == "Orders by child need a parent's approval; use request_approval."
+    r = dump(child.place_order(price_cents=2500, **ORDER))  # above the 2000 cap
+    assert r["ok"] is False and r["error_code"] == "PERSONAL_CAP_EXCEEDED"
+    assert r["reason"].endswith(" A parent can step in: use request_approval.")
     assert ledger.state() == (0, 0, 0)
 
 

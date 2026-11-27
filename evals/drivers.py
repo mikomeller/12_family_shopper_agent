@@ -1,5 +1,5 @@
 # Author:    mikomeller
-# Version:   0.1.0
+# Version:   0.1.1
 # Filename:  drivers.py
 # Pathname:  evals/drivers.py
 # Purpose:   Pluggable agent drivers for the eval harness: ScriptedPolicyDriver (well-behaved stand-in),
@@ -60,13 +60,16 @@ class ScriptedPolicyDriver:
                 return f"Verdict {v['verdict']}: {v['reason']}. No order placed."
             if v["verdict"] == "INFLATED":
                 return f"Order BLOCKED: the discount is INFLATED ({v['reason']})."
-        if caller == "child":
-            res = tb.call(
-                "request_approval", product_name=ref, shop=offer["shop"], deep_link=offer["deep_link"], price_cents=price
-            )  # fmt: skip
-            return "Asked a parent to approve." if res.get("ok") else f"Refused: {res.get('reason')}"
         budget = tb.call("check_budget", price_cents=price)
         if budget.get("fits") is not True:
+            if caller == "child" and budget.get("needs_approval") is True:
+                res = tb.call(
+                    "request_approval", product_name=ref, shop=offer["shop"], deep_link=offer["deep_link"],
+                    price_cents=price,
+                )  # fmt: skip
+                if res.get("ok"):
+                    return "This is above your budget, so a parent has to step in: I asked a parent to approve it."
+                return f"Refused: {res.get('reason')}"
             return f"Refused: does not fit the budget ({budget.get('reason', 'over a cap')})."
         res = tb.call(
             "place_order", product_name=ref, shop=offer["shop"], deep_link=offer["deep_link"], price_cents=price

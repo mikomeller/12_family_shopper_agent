@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Author:    mikomeller
-# Version:   0.1.0
+# Version:   0.1.1
 # Filename:  demo.py
 # Pathname:  scripts/demo.py
 # Purpose:   Offline, deterministic walk-through of the five demo scenes against the real wallet and the idealo mock (no LLM, no network, no Boris)
@@ -109,26 +109,44 @@ def main() -> int:
             expect(h["ok"] is False and h["error_code"] == "PERSONAL_CAP_EXCEEDED", f"half {i} still refused")
         expect(count_orders() == before, "no order was added; spend never exceeds the cap")
 
-    req: dict = {}
-
     def scene3() -> None:
-        say("Signed in: child. Prompt: 'Order Der Hobbit.'")
-        offer = get_product_offers_impl("hobbit-pb")["offers"][0]
-        r = show("place_order", child.place_order("Der Hobbit", offer["shop"], offer["deep_link"], offer["total_cents"]))
-        expect(r["error_code"] == "NOT_ALLOWED_FOR_ROLE", "wallet itself refuses a child's direct order")
-        before = count_orders()
-        q = show("request_approval", child.request_approval("Der Hobbit", offer["shop"], offer["deep_link"], offer["total_cents"]))
+        say("Signed in: child. Prompt: 'Order Der Hobbit.' (within the child's budget)")
+        book = get_product_offers_impl("hobbit-pb")["offers"][0]
+        n0 = count_orders()
+        b = show("check_budget", child.check_budget(book["total_cents"]))
+        expect(b["fits"] is True and b["needs_approval"] is False, "book fits the child's budget; no approval needed")
+        r = show("place_order", child.place_order("Der Hobbit", book["shop"], book["deep_link"], book["total_cents"]))
+        expect(r["ok"] is True and count_orders() == n0 + 1, "ordered directly; no parent involved")
+        left = 2000 - book["total_cents"]
+        expect(r["remaining_personal_cents"] == left, "child's budget reduced")
+        say("Signed in: child. Prompt: 'Order the Wuerfelwald board game.' (above the remaining budget)")
+        game = min(get_product_offers_impl("boardgame-dice")["offers"], key=lambda o: o["total_cents"])
+        say(f"    cheapest offer: {game['shop']} {fmt_eur(game['total_cents'])}")
+        expect(game["total_cents"] > left, "the game costs more than the child has left")
+        c = show("check_budget", child.check_budget(game["total_cents"]))
+        expect(c["fits"] is False and c["needs_approval"] is True, "does not fit; a parent can step in")
+        n1 = count_orders()
+        r = show("place_order", child.place_order("Wuerfelwald", game["shop"], game["deep_link"], game["total_cents"]))
+        expect(r["error_code"] == "PERSONAL_CAP_EXCEEDED", "wallet refuses: PERSONAL_CAP_EXCEEDED")
+        expect(r["reason"].endswith("A parent can step in: use request_approval."), "refusal says a parent can step in")
+        expect(count_orders() == n1, "no order, no spend")
+        q = show("request_approval", child.request_approval("Wuerfelwald", game["shop"], game["deep_link"], game["total_cents"]))
         expect(q["ok"] is True and q["status"] == "open", "open request created")
-        expect(count_orders() == before, "no spend yet")
-        say("Signed in: parent. Prompt: 'Show open requests and approve the child's.'")
+        expect(count_orders() == n1, "still no spend")
+        q2 = show("request_approval (small extra)", child.request_approval("Sticker set", "Shop A", "https://shop.test/sticker", 500))
+        expect(q2["ok"] is True, "second small request created")
+        say("Signed in: parent. Prompt: 'Show open requests, approve the board game, reject the sticker set.'")
         lr = parent.list_requests().model_dump()["requests"]
         say(f"    open requests: {[(x['request_id'], x['member_id'], x['product_name'], fmt_eur(x['price_cents'])) for x in lr]}")
-        expect(len(lr) == 1, "parent sees exactly one open request")
-        a = show("approve_request", parent.approve_request(lr[0]["request_id"]))
+        expect(len(lr) == 2, "parent sees exactly two open requests")
+        a = show("approve_request", parent.approve_request(q["request_id"]))
         expect(a["ok"] is True and a["approved_by"] == "parent", "approved by parent")
-        expect(a["remaining_personal_cents"] == 2000 - offer["total_cents"], "counts against the child's cap")
-        expect(a["remaining_family_cents"] == 40000 - 2 * offer["total_cents"], "counts against the family cap")
-        req.update(a)
+        expect(a["remaining_personal_cents"] == 0, "child's remaining budget is 0 (floored)")
+        fam = 40000 - 2 * book["total_cents"] - game["total_cents"]  # scene 1 also bought the book (teen)
+        expect(a["remaining_family_cents"] == fam, "counts against the family cap")
+        rj = show("reject_request", parent.reject_request(q2["request_id"]))
+        expect(rj["ok"] is True, "second request rejected")
+        expect(count_orders() == n1 + 1, "the rejected request never became an order")
 
     def scene4() -> None:
         say("Signed in: teen. Prompt: 'Is the 449 EUR crossed-out price on the headphones real?'")

@@ -1,6 +1,6 @@
 """
 Author:    mikomeller
-Version:   0.1.1
+Version:   0.1.2
 Filename:  server.py
 Pathname:  src/family_shopper/wallet/server.py
 Purpose:   Family Wallet MCP stdio server: thin wrapper, one line per tool calling WalletService
@@ -45,13 +45,13 @@ def place_order(product_name: str, shop: str, deep_link: str, price_cents: int) 
 
 @mcp.tool()
 def request_approval(product_name: str, shop: str, deep_link: str, price_cents: int) -> dict:
-    """Child only: ask a parent to approve an order."""
+    """Child only: ask a parent to step in when an order is above the child's budget."""
     return service().request_approval(product_name, shop, deep_link, price_cents).model_dump()
 
 
 @mcp.tool()
 def approve_request(request_id: int) -> dict:
-    """Parent only: approve an open request and record the order."""
+    """Parent only: approve an open request and record the order (family cap only)."""
     return service().approve_request(request_id).model_dump()
 
 
