@@ -1,3 +1,11 @@
+/*
+Author:    rodrigo, mikomeller, rhaveen-sa
+Version:   0.2.0
+Filename:  shopper-app.jsx
+Pathname:  web/shopper-app.jsx
+Purpose:   React UI of the Family Shopper web app: account switcher, chat with the shopping agent, offers, budgets as spending rings,
+           approvals and purchases. All money decisions come from the Family Wallet through the Node server. Design: doc/design/app_ui_rings.md
+*/
 import { useEffect, useRef, useState } from "react";
 
 function money(value) {
@@ -29,8 +37,43 @@ function Icon({ name, size = 20 }) {
   return <svg {...shared}><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>;
 }
 
+// Spending rings: one arc per family member (outer first). Colours: teen blue, child green, family orange.
+const TONES = { teen: ["var(--teen)", "var(--teen2)"], child: ["var(--child)", "var(--child2)"], fam: ["var(--fam)", "var(--fam2)"] };
+const toneFor = (nameOrRole) => ({ teen: "teen", child: "child" })[String(nameOrRole || "").toLowerCase()] || "fam";
+const pctOf = (spent, limit) => (Number(limit) > 0 ? (Number(spent || 0) / Number(limit)) * 100 : 0);
+let ringSeq = 0;
+function Ring({ arcs, size = 72, stroke = 9, center, label, still }) {
+  const [on, setOn] = useState(Boolean(still));
+  const id = useRef(`ring${ringSeq++}`).current;
+  useEffect(() => { if (still) return undefined; const t = requestAnimationFrame(() => setOn(true)); return () => cancelAnimationFrame(t); }, [still]);
+  const c = size / 2;
+  const gap = stroke * 0.4;
+  return <div className="ring-wrap" style={{ width: size, height: size }}>
+    <svg className="ring" width={size} height={size} viewBox={`0 0 ${size} ${size}`} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
+      <defs>
+        {arcs.map((a, i) => <linearGradient key={i} id={`${id}-${i}`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" style={{ stopColor: TONES[a.tone][1] }} /><stop offset="1" style={{ stopColor: TONES[a.tone][0] }} /></linearGradient>)}
+        <filter id={`${id}-s`} x="-1" y="-1" width="3" height="3"><feDropShadow dx="0" dy="0" stdDeviation={Math.max(0.6, stroke / 7)} floodOpacity=".3" /></filter>
+      </defs>
+      {arcs.map((a, i) => {
+        const r = c - stroke / 2 - i * (stroke + gap);
+        if (r <= stroke / 2) return null;
+        const C = 2 * Math.PI * r;
+        const raw = Math.max(0, Math.min(100, Number(a.pct) || 0));
+        const p = raw > 0 ? Math.max(raw, 3) : 0;
+        const th = (2 * Math.PI * p) / 100;
+        return <g key={i}>
+          <circle cx={c} cy={c} r={r} fill="none" strokeWidth={stroke} style={{ stroke: TONES[a.tone][0], strokeOpacity: 0.15 }} />
+          {p > 0 && <circle className="arc" cx={c} cy={c} r={r} fill="none" stroke={`url(#${id}-${i})`} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={C} strokeDashoffset={on ? C * (1 - p / 100) : C} transform={`rotate(-90 ${c} ${c})`} />}
+          {p > 0 && p < 100 && <circle className="cap" cx={c + r * Math.sin(th)} cy={c - r * Math.cos(th)} r={stroke / 2} filter={`url(#${id}-s)`} style={{ fill: TONES[a.tone][0], opacity: on ? 1 : 0 }} />}
+        </g>;
+      })}
+    </svg>
+    {center && <div className="ring-center">{center}</div>}
+  </div>;
+}
+
 function AppMark() {
-  return <div className="brand-mark"><Icon name="spark" size={23} /></div>;
+  return <div className="brand-mark"><Ring still size={30} stroke={4} arcs={[{ tone: "teen", pct: 75 }, { tone: "child", pct: 55 }, { tone: "fam", pct: 35 }]} /></div>;
 }
 
 function InlineText({ text }) {
@@ -107,7 +150,7 @@ function PurchaseModal({ conf, busy, budget, onConfirm, onCancel }) {
         {budget?.meLeft != null && <div><dt>Your budget now</dt><dd>{money(budget.meLeft)}</dd></div>}
         {budget?.familyLeft != null && <div><dt>Family budget now</dt><dd>{money(budget.familyLeft)}</dd></div>}
       </dl>
-      <div className="purchase-confirm-note" id="pc-note">{child ? "A parent has to approve this before anything is ordered. " : ""}Simulated: no real order or payment.</div>
+      <div className="purchase-confirm-note" id="pc-note">{child ? "A parent has to approve this before anything is ordered. " : ""}The order is recorded in the family wallet. No payment is made.</div>
       {conf.error && <div className="modal-error" role="alert">{conf.error} Check the offer or pick a cheaper one, then retry.</div>}
       <div className="modal-actions"><button type="button" className="modal-cancel" onClick={onCancel} disabled={busy}>Cancel</button><button ref={confirmRef} type="button" className="modal-save" onClick={onConfirm} disabled={busy}>{busy ? "Sending…" : conf.error ? "Retry" : child ? "Send request to parent" : "Order now"}</button></div>
     </section>
@@ -200,8 +243,8 @@ function FormattedReply({ content, memberName, onMockPurchase, budget }) {
           </div>
           {memberName && <div className="offer-action">{product ? <>
             <div className="offer-price">{money(product.priceEur)}</div>
-            <button className="mock-buy-button" type="button" disabled={state?.status === "pending" || state?.status === "done"} aria-label={`Record a mock purchase of ${product.productName} for ${memberName}`} onClick={() => setPurchaseConfirmation({ product: { ...product, shopName }, rowKey: key })}>{state?.status === "pending" ? "Adding…" : state?.status === "done" ? (state.message ? "Requested" : "Ordered") : "Buy (mock)"}</button></> : null}</div>}
-          {state?.status === "done" && <StatusCard kind={state.message ? "waiting" : "ordered"} text={state.text || (state.message || "Mock purchase recorded.")} verdict={state.verdict} />}
+            <button className="mock-buy-button" type="button" disabled={state?.status === "pending" || state?.status === "done"} aria-label={`Order ${product.productName} for ${memberName}`} onClick={() => setPurchaseConfirmation({ product: { ...product, shopName }, rowKey: key })}>{state?.status === "pending" ? "Adding…" : state?.status === "done" ? (state.message ? "Requested" : "Ordered") : "Order"}</button></> : null}</div>}
+          {state?.status === "done" && <StatusCard kind={state.message ? "waiting" : "ordered"} text={state.text || (state.message || "Order recorded.")} verdict={state.verdict} />}
           {state?.status === "error" && <StatusCard kind={errorKind(state.message)} text={state.message} />}
         </article>;
       })}</div>;
@@ -212,13 +255,17 @@ function FormattedReply({ content, memberName, onMockPurchase, budget }) {
   })}{purchaseConfirmation && <PurchaseModal conf={purchaseConfirmation} busy={purchaseConfirming} budget={budget} onConfirm={confirmPurchase} onCancel={cancelPurchaseConfirmation} />}</div>;
 }
 
-function Budget({ label, remaining, spent, limit, big }) {
+function Budget({ label, remaining, spent, limit, big, arcs }) {
   const percent = limit ? Math.min(100, (spent / limit) * 100) : 0;
+  const rings = arcs && arcs.length ? arcs : [{ tone: "fam", pct: percent }];
   return <div className={`budget ${big ? "budget-big" : ""}`}>
-    <div className="budget-label">{label}</div>
-    <div className="balance-amount">{money(remaining)} <small>left</small></div>
-    <div className="progress-track" role="progressbar" aria-label={`${label} used`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(percent)}><div className="progress-value" style={{ width: `${percent}%` }} /></div>
-    <div className="budget-foot"><span>{money(spent)} used</span><span>of {money(limit)}</span></div>
+    <Ring arcs={rings} size={big ? 92 : 64} stroke={big ? 10 : 8} label={`${label}: ${money(spent)} used of ${money(limit)}, ${Math.round(percent)} percent`} />
+    <div className="budget-body">
+      <div className="budget-label">{label}</div>
+      <div className="balance-amount">{money(remaining)} <small>left</small></div>
+      <div className="budget-foot"><span>{money(spent)} used</span><span>of {money(limit)}</span></div>
+      {arcs && arcs.length > 1 && <div className="ring-legend">{arcs.map((a) => <span key={a.tone}><i style={{ background: TONES[a.tone][0] }} />{a.name}</span>)}</div>}
+    </div>
   </div>;
 }
 
@@ -228,16 +275,16 @@ function MemberCard({ member, me }) {
   const limit = hasCap ? Number(member.spendingLimitEur) : Number(member.familyCapEur || 0);
   const percent = limit ? Math.min(100, (spent / limit) * 100) : 0;
   const info = ROLE_INFO[String(member.name || "").toLowerCase()] || ROLE_INFO[member.role] || ROLE_INFO.parent;
+  const tone = toneFor(member.name) === "fam" ? toneFor(member.role) : toneFor(member.name);
   return (
     <article className={`member-card ${me ? "is-me" : ""}`}>
-      <div className="member-card-top">
-        <div className="avatar" style={{ background: info.color }}>{member.name?.slice(0, 1).toUpperCase()}</div>
-        <div className="member-name">{member.name}{me && <em> (you)</em>}<span>{member.role}{hasCap ? "" : " · family cap only"}</span></div>
+      <Ring arcs={[{ tone, pct: percent }]} size={56} stroke={7} label={`${member.name}: ${Math.round(percent)} percent of the limit used`}
+        center={<div className="avatar" style={{ background: info.color, width: 26, height: 26, fontSize: 12 }}>{member.name?.slice(0, 1).toUpperCase()}</div>} />
+      <div className="member-card-body">
+        <div className="member-card-top"><div className="member-name">{member.name}{me && <em> (you)</em>}<span>{member.role}{hasCap ? "" : " · family limit only"}</span></div></div>
+        <div className="balance-amount">{money(member.remainingEur)} <small>left</small></div>
+        <div className="budget-foot"><span>{money(spent)} used</span><span>{hasCap ? `of ${money(limit)}` : `family ${money(member.familyRemainingEur)} left`}</span></div>
       </div>
-      <div className="balance-label">REMAINING</div>
-      <div className="balance-amount">{money(member.remainingEur)}</div>
-      <div className="progress-track"><div className="progress-value" style={{ width: `${percent}%` }} /></div>
-      <div className="budget-foot"><span>{money(spent)} used</span><span>{hasCap ? `of ${money(limit)}` : `family ${money(member.familyRemainingEur)} left`}</span></div>
     </article>
   );
 }
@@ -246,7 +293,7 @@ function ChatMessage({ message, onMockPurchase, budget }) {
   const assistant = message.role === "assistant";
   return (
     <div className={`message-row ${assistant ? "assistant-row" : "user-row"}`}>
-      {assistant && <div className="tiny-mark"><Icon name="spark" size={15} /></div>}
+      {assistant && <div className="tiny-mark"><Ring still size={26} stroke={3.5} arcs={[{ tone: "teen", pct: 75 }, { tone: "child", pct: 55 }, { tone: "fam", pct: 35 }]} /></div>}
       <div className={`message-bubble ${assistant ? "assistant-bubble" : "user-bubble"}`}>
         {assistant && <div className="message-label">SHOPPER AGENT</div>}
         <div className="message-copy">{assistant ? <FormattedReply content={message.content} memberName={message.memberName} onMockPurchase={onMockPurchase} budget={budget} /> : message.content}</div>
@@ -429,7 +476,7 @@ export default function ShopperApp() {
       body: JSON.stringify({ ...product, memberName: undefined }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Could not add this mock purchase. Pick a cheaper offer or ask a parent.");
+    if (!response.ok) throw new Error(result.error || "Could not record this order. Pick a cheaper offer or ask a parent.");
     setError("");
     await refreshState();
     const left = lastState.current?.members?.find((m) => String(m.name).toLowerCase() === accountRef.current)?.remainingEur;
@@ -443,7 +490,7 @@ export default function ShopperApp() {
       const response = await api(`/api/family/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not approve this request.");
-      setNotice(action === "reject" ? "Rejected. Nothing was spent." : "Approved. The order was placed (simulated).");
+      setNotice(action === "reject" ? "Rejected. Nothing was spent." : "Approved. The order is recorded in the family wallet.");
       await refreshState();
     } catch (err) { setError(err.message); }
   }
@@ -479,7 +526,7 @@ export default function ShopperApp() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand"><AppMark /><span>Family Shopper</span></div>
-        <div className="role-switch" role="radiogroup" aria-label="Signed in as (demo sign-in)">
+        <div className="role-switch" role="radiogroup" aria-label="Signed in as">
           {ACCOUNTS.map((id) => <button key={id} type="button" role="radio" aria-checked={account === id} className={`role-btn ${account === id ? "active" : ""}`} onClick={() => switchAccount(id)}><span className="role-avatar" style={{ background: ROLE_INFO[id].color }}>{cap(id).slice(0, 1)}</span>{cap(id)}{id === "parent" && pendingApprovals.length > 0 && <span className="role-badge">{pendingApprovals.length} waiting</span>}</button>)}
         </div>
         <div className="top-actions">
@@ -488,9 +535,13 @@ export default function ShopperApp() {
           <button className="ghost-button" type="button" onClick={() => connectIdealo(true)} disabled={connecting}>Reconnect idealo</button>
         </div>
       </header>
-      {offline ? <div className="offline-banner">Offline demo: idealo mock, no LLM</div> : llmMode && <div className="offline-banner">Model: {llmMode.replace("llm:", "")} · catalogue: {catalogue === "live" ? "live idealo" : "idealo mock"}</div>}
+      {offline ? <div className="offline-banner">Sample catalogue. A parent can add a model key under Model provider to search idealo live.</div> : llmMode && <div className="offline-banner">Model: {llmMode.replace("llm:", "")} · catalogue: {catalogue === "live" ? "live idealo" : "idealo mock"}</div>}
       <div className="toast-area" aria-live="polite">{notice && <div className="toast">{notice}</div>}</div>
       <div className="who-bar" style={{ "--who": info.color }}>
+        <div className="who-ring"><Ring size={72} stroke={9} label={`${info.label} spending`} arcs={[
+          ...(me && me.spendingLimitEur != null ? [{ tone: toneFor(account), pct: pctOf(me.spentEur, me.spendingLimitEur) }] : []),
+          ...(family ? [{ tone: "fam", pct: pctOf(family.spentEur, family.capEur) }] : []),
+        ]} /></div>
         <div className="who-text"><span className="who-label">Signed in as</span><strong>{info.label}</strong><span className="who-rule">{rule}</span></div>
         {me && <div className="who-money"><span>Your budget left</span><strong>{money(me.remainingEur)}</strong></div>}
         {family && <div className="who-money"><span>Family budget left</span><strong>{money(family.remainingEur)}</strong></div>}
@@ -500,8 +551,8 @@ export default function ShopperApp() {
           <div className={`chat-panel ${messages.length ? "has-messages" : ""}`}>
             {messages.length === 0 ? (
               <div className="welcome-card">
-                <div className="welcome-title">What are we looking for?</div>
-                <div className="welcome-subtitle">Ask for a product. The agent compares offers and the family wallet decides whether you may buy.</div>
+                <div className="welcome-title">What are we <span className="grad">shopping for?</span></div>
+                <div className="welcome-subtitle">Ask for a product. The agent compares idealo offers. The family wallet decides what fits your budget.</div>
                 <ol className="steps"><li>Choose who you are</li><li>Ask for a product</li><li>Order within your budget</li></ol>
                 <div className="suggestions">
                   {suggestions.map((suggestion) => <button key={suggestion} type="button" className="suggestion" onClick={() => sendMessage(suggestion)}>{suggestion}<Icon name="arrow" size={15} /></button>)}
@@ -517,14 +568,17 @@ export default function ShopperApp() {
           <form className="composer" onSubmit={(event) => { event.preventDefault(); sendMessage(); }}>
             <label htmlFor="chat-input" className="composer-label">Message to the shopping agent</label>
             <textarea id="chat-input" ref={inputRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } }} placeholder="e.g. Der Hobbit, headphones…" rows="2" readOnly={busy} />
-            <div className="composer-bottom"><span>Prices can change. Purchases are simulated.</span><button className="send-button" type="submit" disabled={!draft.trim() || busy}>{busy ? "Sending…" : "Send"} <Icon name="arrow" size={17} /></button></div>
+            <div className="composer-bottom"><span>Prices can change. Orders are recorded in the family wallet. No payment is made.</span><button className="send-button" type="submit" disabled={!draft.trim() || busy}>{busy ? "Sending…" : "Send"} <Icon name="arrow" size={17} /></button></div>
           </form>
         </section>
 
         <aside className="insights-column">
           <details className="panel" open={mineOpen} onToggle={(e) => setMineOpen(e.currentTarget.open)}>
             <summary><h2>Budgets</h2></summary>
-            {family && <Budget big label="Family budget this month" remaining={family.remainingEur} spent={family.spentEur} limit={family.capEur} />}
+            {family && <Budget big label="Family budget this month" remaining={family.remainingEur} spent={family.spentEur} limit={family.capEur} arcs={[
+              ...members.filter((m) => m.spendingLimitEur != null).map((m) => ({ tone: toneFor(m.name) === "fam" ? toneFor(m.role) : toneFor(m.name), pct: pctOf(m.spentEur, m.spendingLimitEur), name: m.name })),
+              { tone: "fam", pct: pctOf(family.spentEur, family.capEur), name: "Family" },
+            ]} />}
             {members.map((member) => <MemberCard key={member.name} member={member} me={String(member.name).toLowerCase() === account} />)}
             {members.length === 0 && <div className="empty-card">No budgets loaded yet.</div>}
           </details>
@@ -538,18 +592,18 @@ export default function ShopperApp() {
 
           <section className="panel">
             <h2>Recent purchases <span className="activity-count">{purchases.length}</span></h2>
-            {purchases.length ? purchases.slice().reverse().slice(0, 4).map((purchase) => <div className="purchase-row" key={purchase.id}><div className="purchase-icon"><Icon name="bag" size={17} /></div><div className="purchase-info"><strong>{purchase.productName}</strong><small>{purchase.member} · simulated</small></div><span className="purchase-price">−{money(purchase.priceEur)}</span></div>) : <div className="empty-card">No purchases yet.</div>}
-            {purchases.length > 0 && <div className="activity-total"><span>Total simulated spend</span><strong>{money(spentTotal)}</strong></div>}
+            {purchases.length ? purchases.slice().reverse().slice(0, 4).map((purchase) => <div className="purchase-row" key={purchase.id}><div className="purchase-icon"><Icon name="bag" size={17} /></div><div className="purchase-info"><strong>{purchase.productName}</strong><small>{purchase.member} · recorded</small></div><span className="purchase-price">−{money(purchase.priceEur)}</span></div>) : <div className="empty-card">No purchases yet.</div>}
+            {purchases.length > 0 && <div className="activity-total"><span>Total recorded</span><strong>{money(spentTotal)}</strong></div>}
           </section>
         </aside>
       </main>
-      <footer className="footnote">Purchases are simulated; no real order is placed.<br />Demo sign-in: accounts are simulated; in production the caller identity comes from TrustBoris.</footer>
+      <footer className="footnote">Orders are recorded in the family wallet. No payment is made.<br />The account switcher is a simple sign-in. In production the caller identity comes from TrustBoris.</footer>
       {memberModalOpen && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !memberSaving) setMemberModalOpen(false); }}>
         <section className="member-modal" role="dialog" aria-modal="true" aria-labelledby="member-modal-title">
           <button className="modal-close" type="button" onClick={() => setMemberModalOpen(false)} disabled={memberSaving} aria-label="Close">×</button>
           <div className="modal-eyebrow">FAMILY BUDGET</div>
           <h2 id="member-modal-title">Add family member</h2>
-          <p>Set a name and demo spending limit to start tracking their budget.</p>
+          <p>Set a name and a monthly spending limit to start tracking their budget.</p>
           <form onSubmit={addFamilyMember}>
             <label htmlFor="member-name">Name</label>
             <input id="member-name" autoFocus autoComplete="off" maxLength={60} value={memberName} onChange={(event) => setMemberName(event.target.value)} placeholder="e.g. Alex" required />
@@ -565,7 +619,7 @@ export default function ShopperApp() {
           <button className="modal-close" type="button" onClick={() => setLlmOpen(false)} disabled={llmSaving} aria-label="Close">×</button>
           <div className="modal-eyebrow">MODEL PROVIDER</div>
           <h2 id="llm-modal-title">Bring your own model</h2>
-          <p>Active: {llmInfo.providers.find((p) => p.id === llmInfo.active.providerId)?.label} · {llmInfo.active.model || "no model"} · {llmInfo.active.hasKey ? `key ends in ••••${llmInfo.active.keyLast4}` : "no key (offline demo)"}</p>
+          <p>Active: {llmInfo.providers.find((p) => p.id === llmInfo.active.providerId)?.label} · {llmInfo.active.model || "no model"} · {llmInfo.active.hasKey ? `key ends in ••••${llmInfo.active.keyLast4}` : "no key (sample catalogue)"}</p>
           <form onSubmit={saveLlm}>
             <label htmlFor="llm-provider">Provider</label>
             <select id="llm-provider" value={llmForm.providerId} onChange={(event) => fillLlmForm(llmInfo, event.target.value)}>{llmInfo.providers.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
