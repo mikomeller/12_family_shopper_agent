@@ -456,8 +456,8 @@ export default function ShopperApp() {
       stepSet("s3", { state: "ok", text: "Request sent for Der Hobbit." }); await refreshState(); await pause();
       begin("s4", "");
       stepSet("s4", { subs: ["Identity: Child (demo sign-in — TrustBoris Agent Gateway in production)"] }); await pause();
-      stepSet("s4", { subs: ["Identity: Child (demo sign-in — TrustBoris Agent Gateway in production)", "Tool gating: a child may only ask — place_order is not available"] }); await pause();
-      stepSet("s4", { state: "wait", text: "Waiting for a parent", subs: ["Identity: Child (demo sign-in — TrustBoris Agent Gateway in production)", "Tool gating: a child may only ask — place_order is not available", `Family Wallet: ${buy.result.message || "Request recorded."}`] }); await pause();
+      stepSet("s4", { subs: ["Identity: Child (demo sign-in — TrustBoris Agent Gateway in production)", "Role check: the Family Wallet refuses a direct order by a child — a child may only ask (TrustBoris tool gating in production)"] }); await pause();
+      stepSet("s4", { state: "wait", text: "Waiting for a parent", subs: ["Identity: Child (demo sign-in — TrustBoris Agent Gateway in production)", "Role check: the Family Wallet refuses a direct order by a child — a child may only ask (TrustBoris tool gating in production)", `Family Wallet: ${buy.result.message || "Request recorded."}`] }); await pause();
       begin("s5", "Switching to Parent…");
       await as("parent");
       const st = await stateNow();
