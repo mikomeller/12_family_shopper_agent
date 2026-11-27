@@ -1,5 +1,5 @@
 # Author:    mikomeller
-# Version:   0.1.0
+# Version:   0.1.1
 # Filename:  test_l2_contract.py
 # Pathname:  tests/test_l2_contract.py
 # Purpose:   L2-01..L2-09 tool contract and identity of the Family Wallet (deterministic, no network, no LLM)
@@ -17,7 +17,7 @@ from family_shopper.wallet.service import WalletService
 SECRET = "test-secret-not-real"
 TOOLS = {
     "check_budget", "place_order", "request_approval", "approve_request",
-    "set_budget", "list_orders", "list_requests",
+    "set_budget", "list_orders", "list_requests", "reject_request",
 }
 
 

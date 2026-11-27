@@ -1,5 +1,5 @@
 %% Author:    mikomeller
-%% Version:   0.1.0
+%% Version:   0.1.1
 %% Filename:  wallet_contract.mmd
 %% Pathname:  doc/diagrams/wallet_contract.mmd
 %% Purpose:   Family Wallet MCP contract: data model and the place_order / request_approval / approve_request
@@ -9,7 +9,7 @@ flowchart TB
       direction LR
       FAM["family<br/>id=1 · family_cap_cents"]
       MEM["members<br/>id PK · role parent|teen|child<br/>personal_cap_cents NULL=no cap"]
-      REQ["approval_requests<br/>id PK · member_id FK · price_cents<br/>status open|approved · order_id FK"]
+      REQ["approval_requests<br/>id PK · member_id FK · price_cents<br/>status open|approved|rejected · order_id FK"]
       ORD["orders<br/>id PK · member_id FK · placed_by FK<br/>price_cents · month YYYY-MM · request_id UNIQUE"]
       MEM -->|1..n| ORD
       MEM -->|1..n| REQ
@@ -31,12 +31,19 @@ flowchart TB
     RA -->|no| E4b[/NOT_ALLOWED_FOR_ROLE<br/>use place_order/]
     RA -->|yes| INSREQ["INSERT approval_requests status=open<br/>no order, no spend"]
 
+    TOOL -->|reject_request| RJ{"caller role = parent?"}
+    RJ -->|no| E5
+    RJ -->|yes| TX4
+
     TOOL -->|approve_request| AP{"caller role = parent?"}
     AP -->|no| E5[/NOT_A_PARENT/]
     AP -->|yes| TX2
 
     subgraph TXN["ONE write transaction: BEGIN IMMEDIATE ... COMMIT"]
       TX1["spend = SUM(price_cents) WHERE month = current month<br/>(personal: member_id = caller)"] --> CAP
+      TX4["load request: exists? status = open?"] -->|missing| E6
+      TX4 -->|not open: approved or rejected| E7
+      TX4 -->|open| REJ["UPDATE request status=rejected, decided_by, decided_at<br/>no order, no spend"]
       TX2["load request: exists? status = open?"] -->|missing| E6[/REQUEST_NOT_FOUND/]
       TX2 -->|not open| E7[/REQUEST_NOT_OPEN/]
       TX2 -->|open| TX3["spend for the CHILD and the family (A1)"] --> CAP
@@ -45,4 +52,5 @@ flowchart TB
       CAP -->|family no| E9[/FAMILY_CAP_EXCEEDED<br/>ROLLBACK; a request stays open/]
       CAP -->|both yes| INS["INSERT orders; if approval: UPDATE request status=approved"]
     end
+    REJ --> OKR([ok: request_id, status=rejected, member_id,<br/>product_name, price_cents, rejected_by])
     INS --> OK([ok: order_id, price, shop, deep_link,<br/>remaining_personal_cents, remaining_family_cents])

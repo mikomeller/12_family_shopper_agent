@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.0
+Version:   0.1.1
 Filename:  discount_check.md
 Pathname:  doc/design/discount_check.md
 Purpose:   Design of the deterministic "is this discount real?" checker (ticket #25) and its MCP tool check_discount
@@ -117,4 +117,4 @@ DC-02 is the ticket formula's false "honest"; DC-14 fails if sale days are not e
 1. Does `get_product_price_history` return the cross-shop daily low or per-shop prices, and as dates or offsets? (unverified)
 2. How does the agent learn `sale_days`? Default 0 may make a long-running sale look INSUFFICIENT/INFLATED wrongly.
 3. Is 1 percentage point the right tolerance, and 7 points the right minimum?
-4. Should INFLATED block `place_order` or only warn? Proposal: warn, the user decides.
+4. Decided by the owner on 2026-11-27: INFLATED blocks the order. The block is enforced in the purchase path of the web UI server and by the agent's system prompt; the wallet has no price history and cannot verify a discount itself.

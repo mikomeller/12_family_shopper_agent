@@ -1,6 +1,6 @@
 """
 Author:    mikomeller
-Version:   0.1.0
+Version:   0.1.1
 Filename:  server.py
 Pathname:  src/family_shopper/wallet/server.py
 Purpose:   Family Wallet MCP stdio server: thin wrapper, one line per tool calling WalletService
@@ -56,6 +56,12 @@ def approve_request(request_id: int) -> dict:
 
 
 @mcp.tool()
+def reject_request(request_id: int) -> dict:
+    """Parent only: reject an open request; no order is created."""
+    return service().reject_request(request_id).model_dump()
+
+
+@mcp.tool()
 def set_budget(target: str, cap_cents: int | None) -> dict:
     """Parent only: set the cap in cents for 'family' or a member id."""
     return service().set_budget(target, cap_cents).model_dump()
@@ -69,7 +75,7 @@ def list_orders(month: str | None = None) -> dict:
 
 @mcp.tool()
 def list_requests(status: str | None = "open") -> dict:
-    """List approval requests ('open', 'approved' or all); parents see all, others only their own."""
+    """List approval requests (open, approved, rejected or all); parents see all, others their own."""
     return service().list_requests(status).model_dump()
 
 

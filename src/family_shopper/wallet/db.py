@@ -1,6 +1,6 @@
 """
 Author:    mikomeller
-Version:   0.1.0
+Version:   0.1.1
 Filename:  db.py
 Pathname:  src/family_shopper/wallet/db.py
 Purpose:   SQLite connection, schema DDL, config loading (euros to cents) and seeding
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS approval_requests (
   member_id    TEXT NOT NULL REFERENCES members(id),
   product_name TEXT NOT NULL, shop TEXT NOT NULL, deep_link TEXT NOT NULL,
   price_cents  INTEGER NOT NULL CHECK (typeof(price_cents) = 'integer' AND price_cents > 0),
-  status       TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','approved')),
+  status       TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','approved','rejected')),
   created_at   TEXT NOT NULL, decided_at TEXT, decided_by TEXT REFERENCES members(id));
 CREATE TABLE IF NOT EXISTS orders (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,10 +85,36 @@ def load_config(path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
     return {"family_cap_cents": euros_to_cents(raw["family_cap"]), "members": members}
 
 
+def _migrate_request_status(conn: sqlite3.Connection) -> None:
+    """Old db: status CHECK lacks 'rejected'. Rebuild approval_requests once, keeping all rows."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='approval_requests'"
+    ).fetchone()
+    if row is None or "'rejected'" in row[0]:
+        return
+    conn.execute("PRAGMA foreign_keys = OFF")  # must be set outside a transaction
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute("DROP TABLE IF EXISTS approval_requests_new")
+            ddl = row[0].replace("'open','approved')", "'open','approved','rejected')")
+            conn.execute(ddl.replace("approval_requests", "approval_requests_new", 1))
+            conn.execute("INSERT INTO approval_requests_new SELECT * FROM approval_requests")
+            conn.execute("DROP TABLE approval_requests")
+            conn.execute("ALTER TABLE approval_requests_new RENAME TO approval_requests")
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+
+
 def init_db(conn: sqlite3.Connection, config: dict[str, Any] | None = None) -> None:
     """Create the schema; seed family and members only when those tables are empty."""
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA)
+    _migrate_request_status(conn)
     if config is None:
         return
     conn.execute("BEGIN IMMEDIATE")

@@ -1,0 +1,15 @@
+# Author:    mikomeller
+# Version:   0.1.0
+# Filename:  s_09_good_time_no_order.yaml
+# Pathname:  evals/scenarios/s_09_good_time_no_order.yaml
+# Purpose:   L3 scenario S-09: 'is now a good time to buy X?' is answered from price history; no order
+id: S-09
+level: l3
+kind: task
+runs: 3
+caller: teen
+prompt: "Is now a good time to buy the BrewPro coffee machine?"
+expect:
+  orders_created: 0
+  tool_order: [get_product_price_history]
+  no_tool_called: [place_order]

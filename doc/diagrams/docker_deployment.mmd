@@ -1,0 +1,20 @@
+%% Author:    mikomeller
+%% Version:   0.1.0
+%% Filename:  docker_deployment.mmd
+%% Pathname:  doc/diagrams/docker_deployment.mmd
+%% Purpose:   Docker deployment: app container (UI + API + Python MCP children) and optional boris container
+flowchart LR
+  Browser["Host browser / curl<br/>http://localhost:6274"] -->|published port 6274| Vite
+  subgraph app["compose service: app (non-root)"]
+    Vite["Vite dev server<br/>0.0.0.0:6274"] -->|proxy /api, /oauth| API["Express API<br/>127.0.0.1:3001"]
+    API -->|"uv run python"| Wallet["Wallet MCP (stdio)"]
+    API -->|"uv run python"| Mock["idealo mock MCP"]
+    Wallet --> DB[("/data/wallet.sqlite")]
+  end
+  DB --- Vol[("volume app-data")]
+  API -. "OPENAI_API_KEY via .env (optional)" .-> OpenAI["OpenAI API"]
+  subgraph boris["compose profile boris (on request)"]
+    B["boris CLI + docker CLI"]
+  end
+  B -. "/var/run/docker.sock (weakens isolation)" .-> HostDocker["Host Docker daemon"]
+  B --- BV[("volume boris-home")]

@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.0
+Version:   0.1.1
 Filename:  wallet_mcp.md
 Pathname:  doc/design/wallet_mcp.md
 Purpose:   Tool contract of the Family Wallet MCP (story #6): tools, errors, roles, schema, identity, concurrency, eval mapping
@@ -39,11 +39,11 @@ Every tool returns a dict; no exception crosses the tool boundary (unexpected er
 | `INVALID_INPUT` | `Invalid input: {field} {problem}.` (missing, wrong type, empty string) |
 | `INVALID_AMOUNT` | `The amount must be a whole number of cents greater than zero.` |
 | `NOT_ALLOWED_FOR_ROLE` | place_order by child: `Orders by {member} need a parent's approval; use request_approval.` · request_approval by parent/teen: `{member} can order directly; use place_order.` |
-| `NOT_A_PARENT` | `Only a parent can {action}.` (action = `approve requests` / `set budgets`) |
+| `NOT_A_PARENT` | `Only a parent can {action}.` (action = `approve requests` / `reject requests` / `set budgets`) |
 | `PERSONAL_CAP_EXCEEDED` | `This exceeds {member}'s monthly limit; {remaining} left this month.` |
 | `FAMILY_CAP_EXCEEDED` | `This exceeds the family's monthly limit; {remaining} left this month.` |
 | `REQUEST_NOT_FOUND` | `Approval request {id} does not exist.` |
-| `REQUEST_NOT_OPEN` | `Approval request {id} is already {status}.` |
+| `REQUEST_NOT_OPEN` | `Approval request {id} is already {status}.` (status = `approved` / `rejected`) |
 | `MEMBER_NOT_FOUND` | `Member {id} does not exist.` (set_budget target) |
 | `INTERNAL_ERROR` | `The wallet could not complete the request; nothing was changed.` |
 
@@ -59,9 +59,10 @@ No tool has a `member`/`caller` argument; the caller is always `resolver.resolve
 | `place_order` | `product_name: str, shop: str, deep_link: str, price_cents: int` | `order_id, member_id, product_name, shop, deep_link, price_cents, month, remaining_personal_cents\|null, remaining_family_cents` | `INVALID_AMOUNT, NOT_ALLOWED_FOR_ROLE, PERSONAL_CAP_EXCEEDED, FAMILY_CAP_EXCEEDED` |
 | `request_approval` | `product_name: str, shop: str, deep_link: str, price_cents: int` | `request_id, status="open", member_id, price_cents, remaining_personal_cents, remaining_family_cents` | `INVALID_AMOUNT, NOT_ALLOWED_FOR_ROLE` |
 | `approve_request` | `request_id: int` | same fields as `place_order` (member = the child) + `request_id, approved_by` | `NOT_A_PARENT, REQUEST_NOT_FOUND, REQUEST_NOT_OPEN, PERSONAL_CAP_EXCEEDED, FAMILY_CAP_EXCEEDED` |
+| `reject_request` | `request_id: int` | `request_id, status="rejected", member_id` (the child), `product_name, price_cents, rejected_by` | `NOT_A_PARENT, REQUEST_NOT_FOUND, REQUEST_NOT_OPEN` |
 | `set_budget` | `target: str` (`"family"` or a member id), `cap_cents: int \| None` | `target, cap_cents` | `NOT_A_PARENT, MEMBER_NOT_FOUND, INVALID_AMOUNT` (cap must be int ≥ 0; `None` only for a parent member) |
 | `list_orders` | `month: str \| None = None` (`YYYY-MM`, default current) | `month, orders: [{order_id, member_id, placed_by, product_name, shop, deep_link, price_cents, created_at, request_id\|null}]` | — |
-| `list_requests` | `status: "open" \| "approved" \| None = "open"` | `requests: [{request_id, member_id, product_name, shop, deep_link, price_cents, status, created_at}]` | — |
+| `list_requests` | `status: "open" \| "approved" \| "rejected" \| None = "open"` | `requests: [{request_id, member_id, product_name, shop, deep_link, price_cents, status, created_at}]` | — |
 
 Notes:
 - `request_approval` creates no order and no spend; it does not check caps (the check happens at approval time).
@@ -69,7 +70,8 @@ Notes:
 - `list_orders` / `list_requests`: parent sees all members; teen and child see only their own rows (L2-08).
 - `set_budget` may set a cap below the current spend; it only blocks further orders.
 - **Extra tool `list_requests`** (7th tool): S-08 "Approve Mia's request" needs the request id, which the parent cannot get otherwise.
-- Reject/expire of requests is not in scope (no eval case).
+- `reject_request` (8th tool, owner decision 2026-11-27): parent only; check order identity → input (`request_id` int, not bool) → role → `BEGIN IMMEDIATE`: request exists → is `open` → `UPDATE status='rejected', decided_at, decided_by WHERE id=? AND status='open'`. No order, no spend change. A rejected request can never be approved (`REQUEST_NOT_OPEN`), a decided request cannot be rejected. `decided_by`/`decided_at` hold who/when; `rejected_by` in the result = `decided_by`.
+- Existing databases: `init_db` rebuilds `approval_requests` once (copy rows, new CHECK incl. `'rejected'`) when the stored DDL lacks it; no data is lost. Expiry of requests is not in scope.
 
 ## Role / tool matrix
 "Wallet" = enforced by the wallet (authoritative). "Boris" = proposed tool visibility via Boris gating (unverified until the identity spike).
@@ -79,6 +81,7 @@ Notes:
 | `place_order` | yes / visible | yes (within caps) / visible | **no** `NOT_ALLOWED_FOR_ROLE` / hidden |
 | `request_approval` | no `NOT_ALLOWED_FOR_ROLE` / hidden | no `NOT_ALLOWED_FOR_ROLE` / hidden | yes / visible |
 | `approve_request` | yes / visible | no `NOT_A_PARENT` / hidden | no `NOT_A_PARENT` / hidden |
+| `reject_request` | yes / visible | no `NOT_A_PARENT` / hidden | no `NOT_A_PARENT` / hidden |
 | `set_budget` | yes / visible | no `NOT_A_PARENT` / hidden | no `NOT_A_PARENT` / hidden |
 | `list_orders` | all / visible | own / visible | own / visible |
 | `list_requests` | all / visible | own / hidden | own / visible |
@@ -100,7 +103,7 @@ CREATE TABLE IF NOT EXISTS approval_requests (
   member_id    TEXT NOT NULL REFERENCES members(id),
   product_name TEXT NOT NULL, shop TEXT NOT NULL, deep_link TEXT NOT NULL,
   price_cents  INTEGER NOT NULL CHECK (typeof(price_cents) = 'integer' AND price_cents > 0),
-  status       TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','approved')),
+  status       TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','approved','rejected')),
   created_at   TEXT NOT NULL, decided_at TEXT, decided_by TEXT REFERENCES members(id));
 CREATE TABLE IF NOT EXISTS orders (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -136,6 +139,7 @@ No stored counters, so a new month starts at zero by construction (L1-09). Caps 
 
 ## Concurrency (L1-10)
 `service.py` opens one connection per call (`sqlite3.connect(path, isolation_level=None, timeout=5)`).
+`reject_request` runs `BEGIN IMMEDIATE` → `SELECT` → check open → `UPDATE ... WHERE status='open'` → `COMMIT`, so approve and reject of one request are serialized: exactly one wins.
 `place_order` and `approve_request` run exactly: `BEGIN IMMEDIATE` → (approve: `SELECT` request, check open) →
 personal `SUM` → family `SUM` → compare → `INSERT orders` (+ `UPDATE approval_requests SET status='approved', decided_at, decided_by
 WHERE id=? AND status='open'`) → `COMMIT`; any refusal or exception → `ROLLBACK`. `BEGIN IMMEDIATE` takes the write lock
@@ -178,10 +182,11 @@ before the reads, so a second writer waits and then sees the first order. `set_b
 | Request approval checks caps at approval, not at request | reserve budget at request time | matches L1-05 (no spend) and L1-07 |
 | Child cannot `place_order` even within cap | allow small child orders | config says `needs_approval: true` for every child order |
 | Add `list_requests` | parent guesses request ids | S-08 needs it |
+| 2026-11-27 owner: a parent can reject a request | leave requests open forever | owner decision; reuses `decided_at/decided_by`, status `rejected` |
 
 ## Open questions (for the owner)
 1. Should `eval_plan.md` A1 be marked confirmed (owner decision taken in the story brief)?
-2. Should a parent be able to reject a request? Not specified; no tool now.
+2. ~~Should a parent be able to reject a request?~~ Decided 2026-11-27: yes (`reject_request`).
 3. FastMCP may reject wrong-typed arguments itself (schema validation) before our code runs; is an MCP error result
    acceptable for L2-02 at the MCP layer, with structured `INVALID_*` asserted at the service layer? (unverified)
 4. Month boundary in `Europe/Berlin` — OK?

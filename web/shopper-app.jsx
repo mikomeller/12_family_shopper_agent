@@ -53,7 +53,10 @@ function getProductFromRow(row) {
     : match[1];
   const priceEur = Number(normalizedPrice);
   if (!Number.isFinite(priceEur) || priceEur <= 0) return null;
-  return { productName, productUrl: link?.[2] || null, priceEur };
+  const frag = new URLSearchParams((link?.[2] || "").split("#")[1] || "");
+  const productRef = frag.get("ref") || undefined;
+  const claimedWasEur = frag.get("was") ? Number(frag.get("was")) / 100 : undefined;
+  return { productName, productUrl: link?.[2] || null, priceEur, productRef, claimedWasEur };
 }
 
 function FormattedReply({ content, memberName, onMockPurchase }) {
@@ -154,7 +157,16 @@ function ChatMessage({ message, onMockPurchase }) {
   );
 }
 
+const ACCOUNTS = ["parent", "teen", "child"];
+const cap = (id) => id.charAt(0).toUpperCase() + id.slice(1);
+
 export default function ShopperApp() {
+  const [account, setAccount] = useState(() => { try { return localStorage.getItem("familyMember") || "parent"; } catch { return "parent"; } });
+  const accountRef = useRef(account);
+  accountRef.current = account;
+  const [offline, setOffline] = useState(false);
+  const api = (url, options = {}) => fetch(url, { ...options, headers: { ...(options.headers || {}), "X-Family-Member": accountRef.current } });
+  const switchAccount = (id) => { try { localStorage.setItem("familyMember", id); } catch { /* ignore */ } setAccount(id); setError(""); };
   const [members, setMembers] = useState([]);
   const [purchases, setPurchases] = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState([]);
@@ -173,6 +185,7 @@ export default function ShopperApp() {
   const [memberSaving, setMemberSaving] = useState(false);
   const [memberError, setMemberError] = useState("");
   const endRef = useRef(null);
+  useEffect(() => { refreshState(); }, [account]);
   const sampleMember = members[0];
   const suggestions = sampleMember ? [
     `Find headphones for ${sampleMember.name} under ${money(Number(sampleMember.remainingEur || 0))}`,
@@ -186,7 +199,7 @@ export default function ShopperApp() {
 
   async function refreshState() {
     try {
-      const response = await fetch("/api/state");
+      const response = await api("/api/state");
       if (!response.ok) throw new Error("Could not load family budgets.");
       const state = await response.json();
       setMembers(state.members);
@@ -197,6 +210,7 @@ export default function ShopperApp() {
       if (authResponse.ok) {
         const authState = await authResponse.json();
         setIdealoConnected(Boolean(authState.connected));
+        setOffline(authState.mode === "offline-mock");
         setIdealoCredentialsSaved(Boolean(authState.credentialsSaved));
         if (authState.error) setError(authState.error);
       }
@@ -205,7 +219,6 @@ export default function ShopperApp() {
     }
   }
 
-  useEffect(() => { refreshState(); }, []);
   useEffect(() => {
     if (!authorizationUrl || idealoConnected) return undefined;
     const timer = setInterval(async () => {
@@ -234,7 +247,7 @@ export default function ShopperApp() {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/chat", {
+      const response = await api("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: next }),
@@ -265,10 +278,10 @@ export default function ShopperApp() {
   }
 
   async function recordMockPurchase(product) {
-    const response = await fetch("/api/family/mock-purchases", {
+    const response = await api("/api/family/mock-purchases", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(product),
+      body: JSON.stringify({ ...product, memberName: undefined }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Could not add this mock purchase.");
@@ -277,10 +290,10 @@ export default function ShopperApp() {
     return result;
   }
 
-  async function approveRequest(requestId) {
+  async function approveRequest(requestId, action = "approve") {
     setError("");
     try {
-      const response = await fetch("/api/family/approve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId }) });
+      const response = await api(`/api/family/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not approve this request.");
       await refreshState();
@@ -323,7 +336,8 @@ export default function ShopperApp() {
       </aside>
 
       <main className="main-area">
-        <header className="topbar"><div className="breadcrumb">Family space <span>/</span> <strong>Shopping assistant</strong></div>{idealoConnected ? <div className="live-pill"><i /> idealo tools ready</div> : <button className="connect-button" onClick={connectIdealo} disabled={connecting}>{connecting ? "Checking…" : idealoCredentialsSaved ? "Check idealo access" : "Connect idealo"}</button>}</header>
+        <header className="topbar"><label className="account-switch">Signed in as: <select value={account} onChange={(event) => switchAccount(event.target.value)}>{ACCOUNTS.map((id) => <option key={id} value={id}>{cap(id)}</option>)}</select></label><div className="breadcrumb">Family space <span>/</span> <strong>Shopping assistant</strong></div>{idealoConnected ? <div className="live-pill"><i /> idealo tools ready</div> : <button className="connect-button" onClick={connectIdealo} disabled={connecting}>{connecting ? "Checking…" : idealoCredentialsSaved ? "Check idealo access" : "Connect idealo"}</button>}</header>
+        {offline && <div className="offline-banner">Offline demo: idealo mock, no LLM</div>}
         <div className="workspace">
           <section className="chat-column">
             <div className="page-heading"><div className="eyebrow"><Icon name="spark" size={15} /> YOUR FAMILY’S PERSONAL SHOPPER</div><h1>Find the right thing.<br /><span>For the right price.</span></h1><p>Thoughtful picks, compared for your family and their budget.</p></div>
@@ -338,7 +352,7 @@ export default function ShopperApp() {
                     {suggestions.map((suggestion) => <button key={suggestion} className="suggestion" onClick={() => sendMessage(suggestion)}>{suggestion}<Icon name="arrow" size={15} /></button>)}
                   </div>
                 </div>
-              ) : <div className="messages">{messages.map((message, index) => <ChatMessage key={`${index}-${message.role}`} message={message.role === "assistant" ? { ...message, memberName: memberForReply(message, messages, index, members) } : message} onMockPurchase={recordMockPurchase} />)}{busy && <div className="message-row assistant-row"><div className="tiny-mark"><Icon name="spark" size={15} /></div><div className="thinking"><i /><i /><i /><span>Comparing options</span></div></div>}<div ref={endRef} /></div>}
+              ) : <div className="messages">{messages.map((message, index) => <ChatMessage key={`${index}-${message.role}`} message={message.role === "assistant" ? { ...message, memberName: cap(account) } : message} onMockPurchase={recordMockPurchase} />)}{busy && <div className="message-row assistant-row"><div className="tiny-mark"><Icon name="spark" size={15} /></div><div className="thinking"><i /><i /><i /><span>Comparing options</span></div></div>}<div ref={endRef} /></div>}
             </div>
 
             {error && <div className="error-note"><Icon name="info" size={16} />{error}</div>}
@@ -347,7 +361,7 @@ export default function ShopperApp() {
               <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } }} placeholder="Ask for something your family needs…" rows="1" disabled={busy} />
               <div className="composer-bottom"><span><Icon name="info" size={14} />Prices can change. Purchases are simulated.</span><button className="send-button" type="submit" disabled={!draft.trim() || busy} aria-label="Send message"><Icon name="arrow" size={19} /></button></div>
             </form>
-            <div className="footnote">Search results from idealo · Mock purchases only · Nothing is ever ordered</div>
+            <div className="footnote">Search results from idealo · Mock purchases only · Nothing is ever ordered<br />Demo sign-in: accounts are simulated; in production the caller identity comes from TrustBoris.</div>
           </section>
 
           <aside className="insights-column">
@@ -356,7 +370,7 @@ export default function ShopperApp() {
             {members.map((member) => <MemberCard key={member.name} member={member} />)}
             {members.length === 0 && <div className="empty-card">Add a family member to start tracking their demo budget.</div>}
 
-            {pendingApprovals.length > 0 && <div className="activity-card"><strong>Waiting for parent approval</strong>{pendingApprovals.map((r) => <div className="purchase-row" key={r.requestId}><div className="purchase-info"><strong>{r.productName}</strong><small>{r.member} · {money(r.priceEur)}</small></div><button className="mock-buy-button" type="button" onClick={() => approveRequest(r.requestId)}>Approve</button></div>)}</div>}
+            {pendingApprovals.length > 0 && <div className="activity-card"><strong>Waiting for parent approval</strong>{pendingApprovals.map((r) => <div className="purchase-row" key={r.requestId}><div className="purchase-info"><strong>{r.productName}</strong><small>{r.member} · {money(r.priceEur)}</small></div><button className="mock-buy-button" type="button" disabled={account !== "parent"} title={account !== "parent" ? "Only a parent can decide" : ""} onClick={() => approveRequest(r.requestId)}>Approve</button><button className="mock-buy-button" type="button" disabled={account !== "parent"} onClick={() => approveRequest(r.requestId, "reject")}>Reject</button></div>)}</div>}
 
             <div className="activity-heading"><div><span className="section-kicker">LOCAL LEDGER</span><h2>Mock purchases</h2></div><span className="activity-count">{purchases.length}</span></div>
             <div className="activity-card">
