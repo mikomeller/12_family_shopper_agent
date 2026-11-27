@@ -1,5 +1,5 @@
 # Author:    c666agent666
-# Version:   0.1.0
+# Version:   0.1.1
 # Filename:  test_boris_identity.py
 # Pathname:  tests/test_boris_identity.py
 # Purpose:   BorisResolver: resolves the TrustBoris-forwarded caller identity and fails closed
@@ -70,13 +70,16 @@ def test_boris_teen_cap_enforced(boris_service, ledger):
     assert ledger.orders() == 1
 
 
-def test_boris_child_must_request_approval(boris_service, ledger):
+def test_boris_child_orders_within_budget_and_requests_above_it(boris_service, ledger):
+    # Owner decision 2026-11-27: up to the child's budget (2000 cents) the wallet decides; above it a parent steps in.
     with request_meta({AGENT_IDENTITY_KEY: "child"}):
-        refused = dump(boris_service.place_order(price_cents=100, **ORDER))
-        req = dump(boris_service.request_approval(price_cents=100, **ORDER))
-    assert refused["ok"] is False and refused["error_code"] == "NOT_ALLOWED_FOR_ROLE"
+        ok = dump(boris_service.place_order(price_cents=100, **ORDER))
+        refused = dump(boris_service.place_order(price_cents=2000, **ORDER))
+        req = dump(boris_service.request_approval(price_cents=2000, **ORDER))
+    assert ok["ok"] is True and ok["member_id"] == "child"
+    assert refused["ok"] is False and refused["error_code"] == "PERSONAL_CAP_EXCEEDED"
     assert req["ok"] is True and req["member_id"] == "child"
-    assert ledger.requests() == 1 and ledger.orders() == 0
+    assert ledger.requests() == 1 and ledger.orders() == 1
 
 
 def test_boris_parent_approves_child_request(boris_service, ledger):
