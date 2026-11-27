@@ -1,14 +1,15 @@
 // Author:    mikomeller
-// Version:   0.1.0
+// Version:   0.1.1
 // Filename:  offline_agent_budget_check.mjs
 // Pathname:  scripts/offline_agent_budget_check.mjs
 // Purpose:   Checks that the offline responder only offers what the wallet says fits the signed-in member (no HTTP server needed)
 import { execFileSync } from "node:child_process";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const tmp = "/Users/mikomeller/.claude/jobs/d2c2d469/tmp";
+const tmp = process.env.BUDGET_CHECK_TMP || os.tmpdir();
 process.env.WALLET_DB = path.join(tmp, `budget_check_${Date.now()}.sqlite`);
 process.env.PYTHONPATH = path.join(root, "src");
 process.env.WALLET_TOKEN_SECRET ||= "budget-check-secret";

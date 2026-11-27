@@ -1,3 +1,9 @@
+// Author:    rodrigo, mikomeller, rhaveen-sa
+// Version:   0.1.1
+// Filename:  server.js
+// Pathname:  src/server.js
+// Purpose:   Node server of the Family Shopper web app: chat with the model, idealo MCP (live or sample catalogue),
+//            orders and approvals through the Family Wallet MCP, model provider settings (parent only)
 import "dotenv/config";
 import OpenAI from "openai";
 import express from "express";
@@ -113,7 +119,7 @@ async function recordMockPurchase({ callerId, memberName, productName, priceEur,
   const purchase = { id: needsApproval ? `request-${result.request_id}` : `order-${result.order_id}`, member: displayName(memberId), productName: order.product_name, priceEur: eur(order.price_cents), productUrl: order.deep_link, shop: order.shop, pendingApproval: needsApproval };
   const message = needsApproval
     ? `Waiting for parent approval: ${purchase.productName} at ${euro(purchase.priceEur)} for ${displayName(memberId)}. Nothing is spent until a parent approves.`
-    : `Mock purchase recorded for ${displayName(memberId)}: ${purchase.productName} at ${euro(purchase.priceEur)}. ${euro(eur(result.remaining_personal_cents ?? result.remaining_family_cents))} remains. No real order was placed.`;
+    : `Order recorded for ${displayName(memberId)}: ${purchase.productName} at ${euro(purchase.priceEur)}. ${euro(eur(result.remaining_personal_cents ?? result.remaining_family_cents))} remains this month. No payment was made.`;
   return { ok: true, message: verdict ? `${message} Discount check: ${verdict}.` : message, purchase, ...(verdict ? { verdict } : {}), ...(priceVerified ? {} : { priceVerified: false }) };
 }
 

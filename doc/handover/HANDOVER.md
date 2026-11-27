@@ -1,6 +1,6 @@
 <!--
 Author:    mikomeller
-Version:   0.1.4
+Version:   0.1.5
 Filename:  HANDOVER.md
 Pathname:  doc/handover/HANDOVER.md
 Purpose:   Handover for whoever continues 12_family_shopper_agent (person or Claude Code session):
@@ -48,6 +48,12 @@ through our own Family Wallet MCP, which enforces personal and family monthly ca
 | Bring your own model provider (story #58) | `src/llm-provider.js` + parent-only "Model provider" dialog: OpenAI / Codex API key, Nebius Token Factory, any OpenAI-compatible endpoint; key in server memory only; tested only against `scripts/fake_llm.mjs`: `FAKE_LLM=1 node scripts/ui_wallet_smoke.mjs` 43 of 43; ChatGPT/Codex subscription OAuth not built |
 | Pitch deck `pitch/` (owner) | added by the owner, commit 0f82ed1, merged with PR #59; not edited by the agents; `pitch/*.py` exempt from the line-length lint rule |
 | Not done | Boris agent in Agent Builder, Boris login, identity spike #4, idealo live smoke test #3, L3/L4 with an LLM agent and Boris, ADR 0001, OpenAI key / idealo sign-in / Boris connection details from the owner (#55) |
+
+## Update 2026-11-27 evening (rhaveen-sa)
+- Pitch: `pitch/pitch.html` is the Rings deck (8 main and 2 backup slides); plain fallback `pitch/pitch_plain.html`; 2 minute script `pitch/pitch_script_2min.md`.
+- README is a product README (live idealo MCP, own model key). Panel review and scores: `doc/reviews/2026-11-27_pitch_panel_review.md`.
+- Design system "Rings": website brief and mockup in `doc/design/website_design.md` and `website_mockup.html`; the web app uses it (`doc/design/app_ui_rings.md`).
+- PR #62 (pitch, README, designs) has the `automerge` label. The app restyle is on branch `rhaveen-sa-ui-rings`.
 
 ## How the orchestration works
 Diagram: [`doc/diagrams/orchestration.mmd`](../diagrams/orchestration.mmd).
